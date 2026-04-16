@@ -1,78 +1,133 @@
-from fastapi import APIRouter, status, HTTPException
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.sql import func
-from typing import List
-from src.schemas.posts import Post
+from fastapi import APIRouter, HTTPException, status
+from typing import List, Optional
+from src.schemas.posts import Post, PostCreate, PostUpdate
+from src.repositories.post_repository import PostRepository
+from src.repositories.user_repository import UserRepository
+from src.repositories.category_repository import CategoryRepository
+from src.repositories.location_repository import LocationRepository
+from src.repositories.comment_repository import CommentRepository
+from src.use_cases.post import (
+    CreatePostUseCase,
+    DeletePostUseCase,
+    GetAllPostsUseCase,
+    GetPostByIdUseCase,
+    UpdatePostUseCase
+)
 
-Base = declarative_base()
+router = APIRouter(prefix="/posts", tags=["Posts"])
 
-class CategoryModel(Base):
-    __tablename__ = "categories"
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(256))
-    description = Column(Text)
-    slug = Column(String, unique=True, index=True)
-    is_published = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+def get_post_repository():
+    return PostRepository("db.sqlite3")
 
-class LocationModel(Base):
-    __tablename__ = "locations"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(256))
-    is_published = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+def get_user_repository():
+    return UserRepository("db.sqlite3")
 
-class PostModel(Base):
-    __tablename__ = "posts"
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(256))
-    text = Column(Text)
-    pub_date = Column(DateTime)
-    is_published = Column(Boolean, default=True)
-    image = Column(String, nullable=True) 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+def get_category_repository():
+    return CategoryRepository("db.sqlite3")
+
+def get_location_repository():
+    return LocationRepository("db.sqlite3")
+
+def get_comment_repository():
+    return CommentRepository("db.sqlite3")
+
+
+@router.get("/", response_model=List[Post])
+def get_all_posts(
+    skip: int = 0,
+    limit: int = 100,
+    author_id: Optional[int] = None,
+    category_id: Optional[int] = None,
+    location_id: Optional[int] = None,
+    only_published: bool = False
+):
+    """Получить все посты с фильтрацией"""
+    repository = get_post_repository()
+    use_case = GetAllPostsUseCase(repository)
+    return use_case.execute(skip, limit, author_id, category_id, location_id, only_published)
+
+
+@router.get("/{post_id}")
+def get_post_by_id(post_id: int, include_comments: bool = True):
+    """Получить пост по ID с комментариями"""
+    post_repository = get_post_repository()
+    comment_repository = get_comment_repository()
+    use_case = GetPostByIdUseCase(post_repository, comment_repository)
     
-    author_id = Column(Integer) 
-    location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    result = use_case.execute(post_id, include_comments)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Post with id {post_id} not found"
+        )
+    return result
 
-class CommentModel(Base):
-    __tablename__ = "comments"
-    id = Column(Integer, primary_key=True, index=True)
-    text = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    is_published = Column(Boolean, default=True)
+
+@router.post("/", response_model=Post, status_code=status.HTTP_201_CREATED)
+def create_post(post_data: PostCreate):
+    """Создать новый пост"""
+    post_repository = get_post_repository()
+    user_repository = get_user_repository()
+    category_repository = get_category_repository()
+    location_repository = get_location_repository()
     
-    post_id = Column(Integer, ForeignKey("posts.id"))
-    author_id = Column(Integer)
+    use_case = CreatePostUseCase(
+        post_repository,
+        user_repository,
+        category_repository,
+        location_repository
+    )
+    
+    try:
+        post = use_case.execute(post_data)
+        return post
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
-router = APIRouter()
-fake_db = []
 
-@router.get("/posts", response_model=List[Post])
-async def get_posts():
-    """GET: Получение списка всех постов"""
-    return fake_db
+@router.put("/{post_id}", response_model=Post)
+def update_post(post_id: int, post_data: PostUpdate):
+    """Обновить пост"""
+    post_repository = get_post_repository()
+    user_repository = get_user_repository()
+    category_repository = get_category_repository()
+    location_repository = get_location_repository()
+    
+    use_case = UpdatePostUseCase(
+        post_repository,
+        user_repository,
+        category_repository,
+        location_repository
+    )
+    
+    try:
+        post = use_case.execute(post_id, post_data)
+        if not post:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Post with id {post_id} not found"
+            )
+        return post
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
-@router.post("/posts", status_code=status.HTTP_201_CREATED, response_model=Post)
-async def create_post(post: Post):
-    """POST: Создание нового поста"""
-    fake_db.append(post)
-    return post
 
-@router.put("/posts/{id}", response_model=Post)
-async def update_post(id: int, updated_post: Post):
-    """PUT: Обновление существующего поста по его индексу"""
-    if 0 <= id < len(fake_db):
-        fake_db[id] = updated_post
-        return updated_post
-    raise HTTPException(status_code=404, detail="Post not found")
-
-@router.delete("/posts/{id}")
-async def delete_post(id: int):
-    """DELETE: Удаление поста по его индексу"""
-    if 0 <= id < len(fake_db):
-        deleted_item = fake_db.pop(id)
-        return {"status": "deleted", "item_title": deleted_item.title}
-    raise HTTPException(status_code=404, detail="Post not found")
+@router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(post_id: int):
+    """Удалить пост"""
+    repository = get_post_repository()
+    use_case = DeletePostUseCase(repository)
+    
+    deleted = use_case.execute(post_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Post with id {post_id} not found"
+        )
+    return None
