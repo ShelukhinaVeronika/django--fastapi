@@ -4,6 +4,7 @@ from src.repositories.post_repository import PostRepository
 from src.repositories.user_repository import UserRepository
 from src.repositories.category_repository import CategoryRepository
 from src.repositories.location_repository import LocationRepository
+from src.exceptions import NotFoundError
 
 
 class UpdatePostUseCase:
@@ -24,17 +25,17 @@ class UpdatePostUseCase:
     def execute(self, post_id: int, post_data: PostUpdate) -> Optional[Post]:
         existing_post = self.post_repository.get_by_id(post_id)
         if not existing_post:
-            return None
+            raise NotFoundError("Post", post_id)
         
         if post_data.category_id:
             category = self.category_repository.get_by_id(post_data.category_id)
             if not category:
-                raise ValueError(f"Category with id {post_data.category_id} does not exist")
-        
+                raise NotFoundError("Category", post_data.category_id)
+                    
         if post_data.location_id:
             location = self.location_repository.get_by_id(post_data.location_id)
             if not location:
-                raise ValueError(f"Location with id {post_data.location_id} does not exist")
+                raise NotFoundError("Location", post_data.Location_id)
         
         updated_post = Post(
             id=post_id,

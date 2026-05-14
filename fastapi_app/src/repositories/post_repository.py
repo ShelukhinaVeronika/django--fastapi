@@ -1,7 +1,10 @@
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 from src.repositories.base_repository import BaseRepository
 from src.schemas.posts import Post
+from src.exceptions import (
+    NotFoundError, UniqueConstraintError, ForeignKeyError
+)
 
 
 class PostRepository(BaseRepository[Post]):
@@ -77,3 +80,53 @@ class PostRepository(BaseRepository[Post]):
             )
             rows = cursor.fetchall()
             return [self._row_to_entity(row) for row in rows]
+ 
+    def get_by_id(self, post_id: int) -> Post:
+        post = super().get_by_id(post_id)
+        if not post:
+            raise NotFoundError("Post", post_id)
+        return post
+    
+    def create(self, entity: Post) -> Post:
+        try:
+            return super().create(entity)
+        except Exception as e:
+            error_msg = str(e)
+            if "UNIQUE constraint failed" in error_msg:
+                if "slug" in error_msg:
+                    raise UniqueConstraintError("Post", "slug", entity.slug)
+                else:
+                    raise UniqueConstraintError("Post", "unknown", str(e))
+            if "FOREIGN KEY constraint failed" in error_msg:
+                if "author_id" in error_msg:
+                    raise ForeignKeyError("User", "author_id", entity.author_id)
+                elif "category_id" in error_msg:
+                    raise ForeignKeyError("Category", "category_id", entity.category_id)
+                elif "location_id" in error_msg:
+                    raise ForeignKeyError("Location", "location_id", entity.location_id)
+            raise
+    
+    def update(self, post_id: int, entity: Post) -> Post:
+        self.get_by_id(post_id)
+        try:
+            result = super().update(post_id, entity)
+            return result
+        except Exception as e:
+            error_msg = str(e)
+            if "UNIQUE constraint failed" in error_msg:
+                if "slug" in error_msg:
+                    raise UniqueConstraintError("Post", "slug", entity.slug)
+                else:
+                    raise UniqueConstraintError("Post", "unknown", str(e))
+            if "FOREIGN KEY constraint failed" in error_msg:
+                if "author_id" in error_msg:
+                    raise ForeignKeyError("User", "author_id", entity.author_id)
+                elif "category_id" in error_msg:
+                    raise ForeignKeyError("Category", "category_id", entity.category_id)
+                elif "location_id" in error_msg:
+                    raise ForeignKeyError("Location", "location_id", entity.location_id)
+            raise
+    
+    def delete(self, post_id: int) -> bool:
+        self.get_by_id(post_id)
+        return super().delete(post_id)

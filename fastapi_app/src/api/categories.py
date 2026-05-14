@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from typing import List
 from src.schemas.category import Category, CategoryCreate, CategoryUpdate
 from src.repositories.category_repository import CategoryRepository
@@ -9,6 +9,11 @@ from src.use_cases.category import (
     GetCategoryByIdUseCase,
     UpdateCategoryUseCase
 )
+from src.exceptions import (
+    NotFoundError, UniqueConstraintError, ValidationError,
+    NotFoundHTTPError, ConflictHTTPError, BadRequestHTTPError
+)
+
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
@@ -33,14 +38,11 @@ def get_category_by_id(category_id: int):
     """Получить категорию по ID"""
     repository = get_category_repository()
     use_case = GetCategoryByIdUseCase(repository)
-    category = use_case.execute(category_id)
     
-    if not category:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Category with id {category_id} not found"
-        )
-    return category
+    try:
+        return use_case.execute(category_id);
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
 
 @router.post("/", response_model=Category, status_code=status.HTTP_201_CREATED)
@@ -50,13 +52,11 @@ def create_category(category_data: CategoryCreate):
     use_case = CreateCategoryUseCase(repository)
     
     try:
-        category = use_case.execute(category_data)
-        return category
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        return use_case.execute(category_data)
+    except UniqueConstraintError as e:
+        raise ConflictHTTPError(e.entity_name, e.field, e.value)
+    except ValidationError as e:
+         raise BadRequestHTTPError(e.message, e.field)
 
 
 @router.put("/{category_id}", response_model=Category)
@@ -66,18 +66,11 @@ def update_category(category_id: int, category_data: CategoryUpdate):
     use_case = UpdateCategoryUseCase(repository)
     
     try:
-        category = use_case.execute(category_id, category_data)
-        if not category:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Category with id {category_id} not found"
-            )
-        return category
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        return use_case.execute(category_id, category_data)
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
+    except ValidationError as e:
+        raise BadRequestHTTPError(e.message, e.field)
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -85,11 +78,10 @@ def delete_category(category_id: int):
     """Удалить категорию"""
     repository = get_category_repository()
     use_case = DeleteCategoryUseCase(repository)
-    
-    deleted = use_case.execute(category_id)
-    if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Category with id {category_id} not found"
-        )
-    return None
+    try:
+        result = use_case.execute(category_id)
+        if not result:
+            raise NotFoundHTTPError("Category", category_id)
+        return None
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)

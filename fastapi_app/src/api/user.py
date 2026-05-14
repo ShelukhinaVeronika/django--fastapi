@@ -9,6 +9,11 @@ from src.use_cases.user import (
     GetUserByIdUseCase,
     UpdateUserUseCase
 )
+from src.exceptions import (
+    NotFoundError, UniqueConstraintError, ValidationError,
+    NotFoundHTTPError, ConflictHTTPError, BadRequestHTTPError
+)
+
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -33,14 +38,10 @@ def get_user_by_id(user_id: int):
     """Получить пользователя по ID"""
     repository = get_user_repository()
     use_case = GetUserByIdUseCase(repository)
-    user = use_case.execute(user_id)
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with id {user_id} not found"
-        )
-    return user
+    try:
+        return use_case.execute(user_id)
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
 
 @router.post("/", response_model=User, status_code=status.HTTP_201_CREATED)
@@ -50,13 +51,11 @@ def create_user(user_data: UserCreate):
     use_case = CreateUserUseCase(repository)
     
     try:
-        user = use_case.execute(user_data)
-        return user
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        return use_case.execute(user_data)
+    except UniqueConstraintError as e:
+        raise ConflictHTTPError(e.entity_name, e.field, e.value)
+    except ValidationError as e:
+        raise BadRequestHTTPError(e.message, e.field)
 
 
 @router.put("/{user_id}", response_model=User)
@@ -66,18 +65,11 @@ def update_user(user_id: int, user_data: UserUpdate):
     use_case = UpdateUserUseCase(repository)
     
     try:
-        user = use_case.execute(user_id, user_data)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with id {user_id} not found"
-            )
-        return user
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        return use_case.execute(user_id, user_data)
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
+    except ValidationError as e:
+        raise BadRequestHTTPError(e.message, e.field)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -85,11 +77,10 @@ def delete_user(user_id: int):
     """Удалить пользователя"""
     repository = get_user_repository()
     use_case = DeleteUserUseCase(repository)
-    
-    deleted = use_case.execute(user_id)
-    if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with id {user_id} not found"
-        )
-    return None
+    try:
+        result = use_case.execute(user_id)
+        if not result:
+            raise NotFoundHTTPError("User", user_id)
+        return None
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)

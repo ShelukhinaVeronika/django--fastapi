@@ -1,5 +1,6 @@
 from src.schemas.users import User, UserCreate
 from src.repositories.user_repository import UserRepository
+from src.exceptions import UniqueConstraintError, ValidationError
 
 
 class CreateUserUseCase:
@@ -10,15 +11,19 @@ class CreateUserUseCase:
     
     def execute(self, user_data: UserCreate) -> User:
         if not user_data.password or len(user_data.password) < 6:
-            raise ValueError("Password is required and must be at least 6 characters")
+            raise ValidationError(
+                field="password",
+                message="Password is required and must be at least 6 characters",
+                value=user_data.password
+            )
         
         existing_email = self.repository.get_by_email(user_data.email)
         if existing_email:
-            raise ValueError(f"User with email '{user_data.email}' already exists")
+            raise UniqueConstraintError("User", "email", user_data.email)
         
         existing_username = self.repository.get_by_username(user_data.username)
         if existing_username:
-            raise ValueError(f"User with username '{user_data.username}' already exists")
+            raise UniqueConstraintError("User", "username", user_data.username)
         
         new_user = User(
             username=user_data.username,

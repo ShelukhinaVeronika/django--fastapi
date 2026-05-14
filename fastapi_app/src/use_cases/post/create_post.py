@@ -3,6 +3,7 @@ from src.repositories.post_repository import PostRepository
 from src.repositories.user_repository import UserRepository
 from src.repositories.category_repository import CategoryRepository
 from src.repositories.location_repository import LocationRepository
+from src.exceptions import NotFoundError
 
 
 class CreatePostUseCase:
@@ -23,18 +24,18 @@ class CreatePostUseCase:
     def execute(self, post_data: PostCreate) -> Post:
         author = self.user_repository.get_by_id(post_data.author_id)
         if not author:
-            raise ValueError(f"User with id {post_data.author_id} does not exist")
-        
+            raise NotFoundError("User", post_data.author_id)
+
         if post_data.category_id:
             category = self.category_repository.get_by_id(post_data.category_id)
             if not category:
-                raise ValueError(f"Category with id {post_data.category_id} does not exist")
+                raise NotFoundError("Category", post_data.category_id)
         
         if post_data.location_id:
             location = self.location_repository.get_by_id(post_data.location_id)
             if not location:
-                raise ValueError(f"Location with id {post_data.location_id} does not exist")
-        
+                raise NotFoundError("Location", post_data.location_id)
+            
         new_post = Post(
             title=post_data.title,
             text=post_data.text,

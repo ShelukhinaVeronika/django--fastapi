@@ -9,6 +9,11 @@ from src.use_cases.location import (
     GetLocationByIdUseCase,
     UpdateLocationUseCase
 )
+from src.exceptions import (
+    NotFoundError, UniqueConstraintError, ValidationError,
+    NotFoundHTTPError, ConflictHTTPError, BadRequestHTTPError
+)
+
 
 router = APIRouter(prefix="/locations", tags=["Locations"])
 
@@ -33,14 +38,10 @@ def get_location_by_id(location_id: int):
     """Получить локацию по ID"""
     repository = get_location_repository()
     use_case = GetLocationByIdUseCase(repository)
-    location = use_case.execute(location_id)
-    
-    if not location:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Location with id {location_id} not found"
-        )
-    return location
+    try:
+        return use_case.execute(location_id)
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
 
 @router.post("/", response_model=Location, status_code=status.HTTP_201_CREATED)
@@ -48,7 +49,12 @@ def create_location(location_data: LocationCreate):
     """Создать новую локацию"""
     repository = get_location_repository()
     use_case = CreateLocationUseCase(repository)
-    return use_case.execute(location_data)
+    try:
+        return use_case.execute(location_data)
+    except UniqueConstraintError as e:
+        raise ConflictHTTPError(e.entity_name, e.field, e.value)
+    except ValidationError as e:
+        raise BadRequestHTTPError(e.message, e.field)
 
 
 @router.put("/{location_id}", response_model=Location)
@@ -57,13 +63,12 @@ def update_location(location_id: int, location_data: LocationUpdate):
     repository = get_location_repository()
     use_case = UpdateLocationUseCase(repository)
     
-    location = use_case.execute(location_id, location_data)
-    if not location:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Location with id {location_id} not found"
-        )
-    return location
+    try:
+        return use_case.execute(location_id, location_data)
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
+    except ValidationError as e:
+        raise BadRequestHTTPError(e.message, e.field)
 
 
 @router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -71,11 +76,10 @@ def delete_location(location_id: int):
     """Удалить локацию"""
     repository = get_location_repository()
     use_case = DeleteLocationUseCase(repository)
-    
-    deleted = use_case.execute(location_id)
-    if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Location with id {location_id} not found"
-        )
-    return None
+    try:
+        result = use_case.execute(location_id)
+        if not result:
+            raise NotFoundHTTPError("Location", location_id)
+        return None
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)

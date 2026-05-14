@@ -1,6 +1,9 @@
 from typing import List, Optional
 from src.repositories.base_repository import BaseRepository
 from src.schemas.category import Category
+from src.exceptions import (
+    NotFoundError, UniqueConstraintError
+)
 
 
 class CategoryRepository(BaseRepository[Category]):
@@ -33,6 +36,16 @@ class CategoryRepository(BaseRepository[Category]):
             row = cursor.fetchone()
             return self._row_to_entity(row) if row else None
     
+    def get_by_title(self, title: str) -> Optional[Category]:
+        """Получить категорию по названию"""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                f"SELECT * FROM {self._get_table_name()} WHERE title = ?",
+                (title,)
+            )
+            row = cursor.fetchone()
+            return self._row_to_entity(row) if row else None
+
     def get_published(self) -> List[Category]:
         """Получить только опубликованные категории"""
         with self._get_connection() as conn:
@@ -41,3 +54,41 @@ class CategoryRepository(BaseRepository[Category]):
             )
             rows = cursor.fetchall()
             return [self._row_to_entity(row) for row in rows]
+
+    def get_by_id(self, category_id: int) -> Category:
+        category = super().get_by_id(category_id)
+        if not category:
+            raise NotFoundError("Category", category_id)
+        return category
+    
+    def create(self, entity: Category) -> Category:
+        try:
+            return super().create(entity)
+        except Exception as e:
+            if "UNIQUE constraint failed" in str(e):
+                if "title" in str(e):
+                    raise UniqueConstraintError("Category", "title", entity.title)
+                elif "slug" in str(e):
+                    raise UniqueConstraintError("Category", "slug", entity.slug)
+                else:
+                    raise UniqueConstraintError("Category", "unknown", str(e))
+            raise
+
+    def update(self, category_id: int, entity: Category) -> Category:
+        self.get_by_id(category_id)  
+        try:
+            return super().update(category_id, entity)
+        except Exception as e:
+            error_msg = str(e)
+            if "UNIQUE constraint failed" in error_msg:
+                if "title" in error_msg:
+                    raise UniqueConstraintError("Category", "title", entity.title)
+                elif "slug" in error_msg:
+                    raise UniqueConstraintError("Category", "slug", entity.slug)
+                else:
+                    raise UniqueConstraintError("Category", "unknown", str(e))
+            raise
+
+    def delete(self, category_id: int) -> bool:
+        self.get_by_id(category_id)
+        return super().delete(category_id)

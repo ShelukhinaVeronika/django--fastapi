@@ -13,6 +13,11 @@ from src.use_cases.post import (
     GetPostByIdUseCase,
     UpdatePostUseCase
 )
+from src.exceptions import (
+    NotFoundError, UniqueConstraintError, ValidationError,
+    NotFoundHTTPError, ConflictHTTPError, BadRequestHTTPError
+)
+
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
@@ -54,13 +59,10 @@ def get_post_by_id(post_id: int, include_comments: bool = True):
     comment_repository = get_comment_repository()
     use_case = GetPostByIdUseCase(post_repository, comment_repository)
     
-    result = use_case.execute(post_id, include_comments)
-    if not result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Post with id {post_id} not found"
-        )
-    return result
+    try:
+        return use_case.execute(post_id, include_comments)
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
 
 @router.post("/", response_model=Post, status_code=status.HTTP_201_CREATED)
@@ -79,13 +81,13 @@ def create_post(post_data: PostCreate):
     )
     
     try:
-        post = use_case.execute(post_data)
-        return post
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        return use_case.execute(post_data)
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
+    except UniqueConstraintError as e:
+        raise ConflictHTTPError(e.entity_name, e.field, e.value)
+    except ValidationError as e:
+        raise BadRequestHTTPError(e.message, e.field)
 
 
 @router.put("/{post_id}", response_model=Post)
@@ -104,18 +106,11 @@ def update_post(post_id: int, post_data: PostUpdate):
     )
     
     try:
-        post = use_case.execute(post_id, post_data)
-        if not post:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Post with id {post_id} not found"
-            )
-        return post
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        return use_case.execute(post_id, post_data)
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
+    except ValidationError as e:
+        raise BadRequestHTTPError(e.message, e.field)
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -123,11 +118,11 @@ def delete_post(post_id: int):
     """Удалить пост"""
     repository = get_post_repository()
     use_case = DeletePostUseCase(repository)
+    try:
+        result = use_case.execute(post_id)
+        if not result:
+            raise NotFoundHTTPError("Post", post_id)
+        return None
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
     
-    deleted = use_case.execute(post_id)
-    if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Post with id {post_id} not found"
-        )
-    return None

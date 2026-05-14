@@ -1,6 +1,9 @@
 from typing import List, Optional
 from src.repositories.base_repository import BaseRepository
 from src.schemas.users import User
+from src.exceptions import (
+    NotFoundError, UniqueConstraintError
+)
 
 
 class UserRepository(BaseRepository[User]):
@@ -56,3 +59,43 @@ class UserRepository(BaseRepository[User]):
             )
             rows = cursor.fetchall()
             return [self._row_to_entity(row) for row in rows]
+        
+    def get_by_id(self, user_id: int) -> User:
+        user = super().get_by_id(user_id)
+        if not user:
+            raise NotFoundError("User", user_id)
+        return user
+    
+    def create(self, entity: User) -> User:
+        try:
+            return super().create(entity)
+        except Exception as e:
+            error_msg = str(e)
+            if "UNIQUE constraint failed" in error_msg:
+                if "username" in error_msg:
+                    raise UniqueConstraintError("User", "username", entity.username)
+                elif "email" in error_msg:
+                    raise UniqueConstraintError("User", "email", entity.email)
+                else:
+                    raise UniqueConstraintError("User", "unknown", str(e))
+            raise
+    
+    def update(self, user_id: int, entity: User) -> User:
+        self.get_by_id(user_id)
+        try:
+            result = super().update(user_id, entity)
+            return result
+        except Exception as e:
+            error_msg = str(e)
+            if "UNIQUE constraint failed" in error_msg:
+                if "username" in error_msg:
+                    raise UniqueConstraintError("User", "username", entity.username)
+                elif "email" in error_msg:
+                    raise UniqueConstraintError("User", "email", entity.email)
+                else:
+                    raise UniqueConstraintError("User", "unknown", str(e))
+            raise
+    
+    def delete(self, user_id: int) -> bool:
+        self.get_by_id(user_id)
+        return super().delete(user_id)

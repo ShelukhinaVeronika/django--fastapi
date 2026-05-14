@@ -1,6 +1,7 @@
 from typing import Optional
 from src.schemas.users import User, UserUpdate
 from src.repositories.user_repository import UserRepository
+from src.exceptions import UniqueConstraintError, NotFoundError
 
 
 class UpdateUserUseCase:
@@ -12,17 +13,17 @@ class UpdateUserUseCase:
     def execute(self, user_id: int, user_data: UserUpdate) -> Optional[User]:
         existing_user = self.repository.get_by_id(user_id)
         if not existing_user:
-            return None
+            raise NotFoundError("User", user_id)
         
         if user_data.email and user_data.email != existing_user.email:
             email_exists = self.repository.get_by_email(user_data.email)
             if email_exists:
-                raise ValueError(f"User with email '{user_data.email}' already exists")
-        
+                raise UniqueConstraintError("User", "email", user_data.email)
+
         if user_data.username and user_data.username != existing_user.username:
             username_exists = self.repository.get_by_username(user_data.username)
             if username_exists:
-                raise ValueError(f"User with username '{user_data.username}' already exists")
+               raise UniqueConstraintError("User", "username", user_data.username)
         
         updated_user = User(
     id=user_id,

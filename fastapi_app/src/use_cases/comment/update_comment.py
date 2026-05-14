@@ -1,6 +1,7 @@
 from typing import Optional
 from src.schemas.comments import Comment, CommentUpdate
 from src.repositories.comment_repository import CommentRepository
+from src.exceptions import NotFoundError
 
 
 class UpdateCommentUseCase:
@@ -9,10 +10,10 @@ class UpdateCommentUseCase:
     def __init__(self, repository: CommentRepository):
         self.repository = repository
     
-    def execute(self, comment_id: int, comment_data: CommentUpdate) -> Optional[Comment]:
+    def execute(self, comment_id: int, comment_data: CommentUpdate) -> Comment:
         existing_comment = self.repository.get_by_id(comment_id)
         if not existing_comment:
-            return None
+            raise NotFoundError("Comment", comment_data.post_id)
         
         updated_comment = Comment(
             id=comment_id,

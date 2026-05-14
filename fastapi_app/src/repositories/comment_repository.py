@@ -1,6 +1,10 @@
 from typing import List, Optional
 from src.repositories.base_repository import BaseRepository
 from src.schemas.comments import Comment
+from src.exceptions import (
+    NotFoundError, UniqueConstraintError,
+    ForeignKeyError
+)
 
 
 class CommentRepository(BaseRepository[Comment]):
@@ -51,3 +55,31 @@ class CommentRepository(BaseRepository[Comment]):
             )
             rows = cursor.fetchall()
             return [self._row_to_entity(row) for row in rows]
+
+    def get_by_id(self, comment_id: int) -> Comment:
+        comment = super().get_by_id(comment_id)
+        if not comment:
+            raise NotFoundError("Comment", comment_id)
+        return comment
+    
+    def create(self, entity: Comment) -> Comment:
+        try:
+            return super().create(entity)
+        except Exception as e:
+            if "UNIQUE constraint failed" in str(e):
+                raise UniqueConstraintError("Comment", "id", str(entity.id))
+            if "FOREIGN KEY constraint failed" in str(e):
+                if "post_id" in str(e):
+                    raise ForeignKeyError("Post", "post_id", entity.post_id)
+                if "author_id" in str(e):
+                    raise ForeignKeyError("User", "author_id", entity.author_id)
+            raise
+    
+    def update(self, comment_id: int, entity: Comment) -> Comment:
+        self.get_by_id(comment_id)
+        result = super().update(comment_id, entity)
+        return result
+    
+    def delete(self, comment_id: int) -> bool:
+        self.get_by_id(comment_id)
+        return super().delete(comment_id)

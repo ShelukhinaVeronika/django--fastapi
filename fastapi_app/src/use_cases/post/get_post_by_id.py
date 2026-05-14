@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any
 from src.schemas.posts import Post
 from src.repositories.post_repository import PostRepository
 from src.repositories.comment_repository import CommentRepository
+from src.exceptions import NotFoundError
 
 
 class GetPostByIdUseCase:
@@ -14,7 +15,7 @@ class GetPostByIdUseCase:
     def execute(self, post_id: int, include_comments: bool = True) -> Optional[Dict[str, Any]]:
         post = self.post_repository.get_by_id(post_id)
         if not post:
-            return None
+            raise NotFoundError("Post", post_id)
         
         result = post.model_dump()
         
