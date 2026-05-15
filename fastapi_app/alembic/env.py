@@ -11,7 +11,11 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.database import Base
-from src.schemas import category, location, posts, comments, users
+from src.models.category import Category
+from src.models.user import User
+from src.models.comment import Comment
+from src.models.location import Location
+from src.models.post import Post
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
