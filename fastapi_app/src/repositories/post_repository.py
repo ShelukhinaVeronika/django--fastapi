@@ -14,8 +14,8 @@ class PostRepository(BaseRepository[Post]):
         return "blog_post"
     
     def _get_columns(self) -> list:
-        return ["title", "text", "pub_date", "author_id", "location_id", 
-                "category_id", "image", "is_published", "created_at"]
+        return ["title", "text", "pub_date", "image", "author_id", "location_id", 
+                "category_id", "is_published", "created_at"]
     
     def _row_to_entity(self, row) -> Post:
         """Преобразуем строку SQLite в Pydantic модель Post"""
@@ -24,12 +24,12 @@ class PostRepository(BaseRepository[Post]):
             title=row[1],
             text=row[2],
             pub_date=row[3],
-            is_published=bool(row[4]),
-            created_at=row[5],
-            author_id=row[6],
+            image=row[4],
+            author_id=row[5],
+            location_id=row[6],
             category_id=row[7],
-            location_id=row[8],
-            image=row[9]
+            is_published=bool(row[8]),
+            created_at=row[9]            
         )
     
     def get_by_author(self, author_id: int) -> List[Post]:

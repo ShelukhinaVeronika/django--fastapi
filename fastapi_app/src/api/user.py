@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List
 from src.schemas.users import User, UserCreate, UserUpdate
 from src.repositories.user_repository import UserRepository
+from src.repositories.post_repository import PostRepository
+from src.repositories.comment_repository import CommentRepository
 from src.use_cases.user import (
     CreateUserUseCase,
     DeleteUserUseCase,
@@ -20,6 +22,12 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 def get_user_repository():
     return UserRepository("db.sqlite3")
+
+def get_post_repository():
+    return PostRepository("db.sqlite3")
+
+def get_comment_repository():
+    return CommentRepository("db.sqlite3")
 
 
 @router.get("/", response_model=List[User])
@@ -90,9 +98,12 @@ def update_current_user(
 def delete_current_user(
     current_user: User = Depends(get_current_user)
 ):
-    """Удалить текущего пользователя"""
-    repository = get_user_repository()
-    use_case = DeleteUserUseCase(repository)
+    """Удалить текущего пользователя и все его посты и комментарии"""
+    user_repository = get_user_repository()
+    post_repository = get_post_repository()
+    comment_repository = get_comment_repository()
+    
+    use_case = DeleteUserUseCase(user_repository, post_repository, comment_repository)
     
     try:
         result = use_case.execute(current_user.id)
@@ -103,12 +114,13 @@ def delete_current_user(
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
 
-
 @router.put("/{user_id}", response_model=User)
-def update_user(user_id: int, user_data: UserUpdate,
-                current_user: User = Depends(get_current_user)):
-    """Обновить пользователя"""
-
+def update_user(
+    user_id: int,
+    user_data: UserUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Обновить пользователя (только для админов)"""
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -124,13 +136,23 @@ def update_user(user_id: int, user_data: UserUpdate,
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int,
-                current_user: User = Depends(get_current_user)):
-    """Удалить пользователя"""
+def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Удалить пользователя (только для админов)"""
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")
-    repository = get_user_repository()
-    use_case = DeleteUserUseCase(repository)
+    
+    if current_user.id == user_id:
+        raise HTTPException(status_code=400, detail="You cannot delete yourself")
+    
+    user_repository = get_user_repository()
+    post_repository = get_post_repository()
+    comment_repository = get_comment_repository()
+    
+    use_case = DeleteUserUseCase(user_repository, post_repository, comment_repository)
+    
     try:
         result = use_case.execute(user_id)
         if not result:
