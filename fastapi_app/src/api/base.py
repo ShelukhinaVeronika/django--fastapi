@@ -134,16 +134,17 @@ def update_post(post_id: int, post_data: PostUpdate,
 def delete_post(post_id: int,
                 current_user: User = Depends(get_current_user)):
     """Удалить пост"""
-    repository = get_post_repository()
+    post_repository = get_post_repository()
+    comment_repository = get_comment_repository()
 
     try:
-        existing_post = repository.get_by_id(post_id)
+        existing_post = post_repository.get_by_id(post_id)
         if existing_post.author_id != current_user.id and not current_user.is_superuser:
             raise HTTPException(status_code=403, detail="You can only delete your own posts")
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
-    use_case = DeletePostUseCase(repository)
+    use_case = DeletePostUseCase(post_repository, comment_repository)
     try:
         result = use_case.execute(post_id)
         if not result:
