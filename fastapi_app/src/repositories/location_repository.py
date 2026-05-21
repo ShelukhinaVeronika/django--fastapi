@@ -1,6 +1,6 @@
 from typing import List, Optional
 from src.repositories.base_repository import BaseRepository
-from src.schemas.location import Location
+from src.models.location import Location
 from src.exceptions import (
     NotFoundError, UniqueConstraintError
 )

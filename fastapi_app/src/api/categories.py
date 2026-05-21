@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List
 from src.schemas.category import Category, CategoryCreate, CategoryUpdate
 from src.repositories.category_repository import CategoryRepository
@@ -13,6 +13,8 @@ from src.exceptions import (
     NotFoundError, UniqueConstraintError, ValidationError,
     NotFoundHTTPError, ConflictHTTPError, BadRequestHTTPError
 )
+from src.auth.dependencies import get_current_user
+from src.schemas.users import User
 
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
@@ -46,7 +48,8 @@ def get_category_by_id(category_id: int):
 
 
 @router.post("/", response_model=Category, status_code=status.HTTP_201_CREATED)
-def create_category(category_data: CategoryCreate):
+def create_category(category_data: CategoryCreate,
+                    current_user: User = Depends(get_current_user)):
     """Создать новую категорию"""
     repository = get_category_repository()
     use_case = CreateCategoryUseCase(repository)
@@ -60,8 +63,11 @@ def create_category(category_data: CategoryCreate):
 
 
 @router.put("/{category_id}", response_model=Category)
-def update_category(category_id: int, category_data: CategoryUpdate):
+def update_category(category_id: int, category_data: CategoryUpdate,
+                    current_user: User = Depends(get_current_user)):
     """Обновить категорию"""
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Admin access required")
     repository = get_category_repository()
     use_case = UpdateCategoryUseCase(repository)
     
@@ -74,8 +80,11 @@ def update_category(category_id: int, category_data: CategoryUpdate):
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_category(category_id: int):
+def delete_category(category_id: int,
+                    current_user: User = Depends(get_current_user)):
     """Удалить категорию"""
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Admin access required")
     repository = get_category_repository()
     use_case = DeleteCategoryUseCase(repository)
     try:

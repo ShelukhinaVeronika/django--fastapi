@@ -33,17 +33,18 @@ class BaseRepository(ABC, Generic[T]):
     def get_all(self) -> List[T]:
         """Получить все записи"""
         with self._get_connection() as conn:
-            cursor = conn.execute(f"SELECT * FROM {self._get_table_name()}")
+            columns_str = ', '.join(self._get_columns())
+            query = f"SELECT id, {columns_str} FROM {self._get_table_name()}"
+            cursor = conn.execute(query)
             rows = cursor.fetchall()
             return [self._row_to_entity(row) for row in rows]
     
     def get_by_id(self, entity_id: int) -> Optional[T]:
         """Получить запись по ID"""
         with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE id = ?",
-                (entity_id,)
-            )
+            columns_str = ', '.join(self._get_columns())
+            query = f"SELECT id, {columns_str} FROM {self._get_table_name()} WHERE id = ?"
+            cursor = conn.execute(query, (entity_id,))
             row = cursor.fetchone()
             return self._row_to_entity(row) if row else None
     

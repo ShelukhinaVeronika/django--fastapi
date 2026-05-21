@@ -1,7 +1,7 @@
 from typing import List
 from datetime import datetime
 from src.repositories.base_repository import BaseRepository
-from src.schemas.posts import Post
+from src.models.post import Post
 from src.exceptions import (
     NotFoundError, UniqueConstraintError, ForeignKeyError
 )

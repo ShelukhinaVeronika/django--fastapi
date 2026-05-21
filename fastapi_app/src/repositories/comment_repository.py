@@ -1,6 +1,6 @@
 from typing import List, Optional
 from src.repositories.base_repository import BaseRepository
-from src.schemas.comments import Comment
+from src.models.comment import Comment
 from src.exceptions import (
     NotFoundError, UniqueConstraintError,
     ForeignKeyError
@@ -14,17 +14,17 @@ class CommentRepository(BaseRepository[Comment]):
         return "blog_comment"
     
     def _get_columns(self) -> list:
-        return ["text", "post_id", "author_id", "created_at", "is_published"]
+        return ["text", "post_id", "author_id", "is_published", "created_at"]
     
     def _row_to_entity(self, row) -> Comment:
         """Преобразуем строку SQLite в Pydantic модель Comment"""
         return Comment(
             id=row[0],
             text=row[1],
-            created_at=row[2],
+            post_id=row[2],
             author_id=row[3],
-            post_id=row[4],
-            is_published=bool(row[5])
+            is_published=bool(row[4]),
+            created_at=row[5],
         )
     
     def get_by_post(self, post_id: int) -> List[Comment]:

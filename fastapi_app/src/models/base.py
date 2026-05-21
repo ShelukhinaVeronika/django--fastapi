@@ -1,6 +1,5 @@
 from sqlalchemy import Column, Boolean, DateTime
 from sqlalchemy.sql import func
-from src.database import Base
 
 
 class PublishedMixin:

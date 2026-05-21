@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from src.database import Base
 
 
@@ -12,6 +13,8 @@ class Category(Base):
     slug = Column(String(256), unique=True, nullable=False, index=True)
     is_published = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    posts = relationship("Post", back_populates="category")
 
     def __repr__(self):
         return f"<Category(id={self.id}, title={self.title}, slug={self.slug})>"

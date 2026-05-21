@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List, Optional
 from src.schemas.posts import Post, PostCreate, PostUpdate
 from src.repositories.post_repository import PostRepository
@@ -17,6 +17,8 @@ from src.exceptions import (
     NotFoundError, UniqueConstraintError, ValidationError,
     NotFoundHTTPError, ConflictHTTPError, BadRequestHTTPError
 )
+from src.auth.dependencies import get_current_user
+from src.schemas.users import User
 
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
@@ -65,13 +67,20 @@ def get_post_by_id(post_id: int, include_comments: bool = True):
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
 
+
 @router.post("/", response_model=Post, status_code=status.HTTP_201_CREATED)
-def create_post(post_data: PostCreate):
+def create_post(post_data: PostCreate,
+                current_user: User = Depends(get_current_user)):
     """Создать новый пост"""
     post_repository = get_post_repository()
     user_repository = get_user_repository()
     category_repository = get_category_repository()
     location_repository = get_location_repository()
+
+
+    if post_data.author_id and post_data.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You cannot create post for another user")
+    post_data.author_id = current_user.id
     
     use_case = CreatePostUseCase(
         post_repository,
@@ -91,13 +100,21 @@ def create_post(post_data: PostCreate):
 
 
 @router.put("/{post_id}", response_model=Post)
-def update_post(post_id: int, post_data: PostUpdate):
+def update_post(post_id: int, post_data: PostUpdate,
+                current_user: User = Depends(get_current_user)):
     """Обновить пост"""
     post_repository = get_post_repository()
     user_repository = get_user_repository()
     category_repository = get_category_repository()
     location_repository = get_location_repository()
     
+    try:
+        existing_post = post_repository.get_by_id(post_id)
+        if existing_post.author_id != current_user.id and not current_user.is_superuser:
+            raise HTTPException(status_code=403, detail="You can only update your own posts")
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
+
     use_case = UpdatePostUseCase(
         post_repository,
         user_repository,
@@ -114,9 +131,18 @@ def update_post(post_id: int, post_data: PostUpdate):
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(post_id: int):
+def delete_post(post_id: int,
+                current_user: User = Depends(get_current_user)):
     """Удалить пост"""
     repository = get_post_repository()
+
+    try:
+        existing_post = repository.get_by_id(post_id)
+        if existing_post.author_id != current_user.id and not current_user.is_superuser:
+            raise HTTPException(status_code=403, detail="You can only delete your own posts")
+    except NotFoundError as e:
+        raise NotFoundHTTPError(e.entity_name, e.entity_id)
+
     use_case = DeletePostUseCase(repository)
     try:
         result = use_case.execute(post_id)

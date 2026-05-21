@@ -7,6 +7,7 @@ from src.api.categories import router as categories_router
 from src.api.locations import router as locations_router
 from src.api.comment import router as comments_router
 from src.api.user import router as users_router
+from src.api.auth import router as auth_router
 from src.exceptions import ValidationError, NotFoundError, UniqueConstraintError
 
 
@@ -54,7 +55,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
+    
+    app.include_router(auth_router, tags=["Authentication"])
     app.include_router(base_router, prefix="/base", tags=["Base APIs"])
     app.include_router(categories_router, tags=["Categories"])
     app.include_router(locations_router, tags=["Locations"])

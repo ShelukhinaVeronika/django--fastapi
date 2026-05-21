@@ -1,6 +1,6 @@
 from typing import List, Optional
 from src.repositories.base_repository import BaseRepository
-from src.schemas.users import User
+from src.models.user import User
 from src.exceptions import (
     NotFoundError, UniqueConstraintError
 )
@@ -21,17 +21,16 @@ class UserRepository(BaseRepository[User]):
     
     def _row_to_entity(self, row) -> User:
         return User(
-            id=row[0],
-            password=row[1],
-            last_login=row[2],
-            is_superuser=bool(row[3]),
-            username=row[4],
-            last_name=row[5],
-            email=row[6] if row[6] else None,
-            is_staff=bool(row[7]),
-            is_active=bool(row[8]),
+            id=row[0],username=row[1], 
+            email=row[2] if row[2] else None,
+            first_name=row[3], 
+            last_name=row[4],
+            password=row[5],
+            is_active=bool(row[6]), 
+            is_superuser=bool(row[7]),
+            is_staff=bool(row[8]),
             date_joined=row[9],
-            first_name=row[10]
+            last_login=row[10] if row[10] else None 
         )
     
     def get_by_email(self, email: str) -> Optional[User]:
@@ -67,6 +66,8 @@ class UserRepository(BaseRepository[User]):
         return user
     
     def create(self, entity: User) -> User:
+        from src.auth.hashing import hash_password
+        entity.password = hash_password(entity.password)
         try:
             return super().create(entity)
         except Exception as e:

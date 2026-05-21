@@ -1,6 +1,6 @@
 from typing import List, Optional
 from src.repositories.base_repository import BaseRepository
-from src.schemas.category import Category
+from src.models.category import Category
 from src.exceptions import (
     NotFoundError, UniqueConstraintError
 )

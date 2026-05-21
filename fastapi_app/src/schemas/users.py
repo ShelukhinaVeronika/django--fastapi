@@ -5,6 +5,20 @@ from src.schemas.base import BaseSchema
 from src.exceptions import ValidationError
 
 
+class User(BaseSchema):
+    id: Optional[int] = None
+    username: str = Field(..., max_length=150)
+    email: Optional[EmailStr] = None
+    first_name: Optional[str] = Field(None, max_length=150)
+    last_name: Optional[str] = Field(None, max_length=150)
+    password: str
+    is_active: bool = True
+    is_superuser: bool = False 
+    is_staff: bool = False 
+    date_joined: datetime = Field(default_factory=datetime.now)
+    last_login: Optional[datetime] = None
+
+
 class UserCreate(BaseSchema):
     username: str = Field(..., max_length=150, min_length=3)
     email: Optional[EmailStr] = None
