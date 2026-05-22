@@ -1,7 +1,7 @@
 from .hashing import verify_password, hash_password
 from .jwt import create_access_token, decode_access_token
 from .dependencies import get_current_user
-from .config import settings
+from src.config import settings
 
 __all__ = [
     "verify_password",

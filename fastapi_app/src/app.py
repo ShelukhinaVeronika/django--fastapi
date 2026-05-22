@@ -20,7 +20,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def create_app() -> FastAPI:
-    app = FastAPI(root_path="/api/v1")
+    app = FastAPI()
+
+
 
     app.add_middleware(LoggingMiddleware)
     
