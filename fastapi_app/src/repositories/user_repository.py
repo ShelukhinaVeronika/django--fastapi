@@ -1,4 +1,6 @@
 from typing import List, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 from src.repositories.base_repository import BaseRepository
 from src.models.user import User
 from src.exceptions import NotFoundError, UniqueConstraintError
@@ -6,6 +8,9 @@ from src.exceptions import NotFoundError, UniqueConstraintError
 
 class UserRepository(BaseRepository[User]):
     """Репозиторий для работы с пользователями (таблица auth_user)"""
+
+    def __init__(self, db: Session):
+        super().__init__(db)
 
     def _get_table_name(self) -> str:
         return "auth_user"
@@ -40,29 +45,34 @@ class UserRepository(BaseRepository[User]):
         )
 
     def get_by_email(self, email: str) -> Optional[User]:
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE email = ?", (email,)
-            )
-            row = cursor.fetchone()
-            return self._row_to_entity(row) if row else None
+        """Получить пользователя по email"""
+        columns_str = ", ".join(self._get_columns())
+        query = text(
+            f"SELECT id, {columns_str} FROM {self._get_table_name()} WHERE email = :email"
+        )
+        result = self.db.execute(query, {"email": email})
+        row = result.fetchone()
+        return self._row_to_entity(row) if row else None
 
     def get_by_username(self, username: str) -> Optional[User]:
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE username = ?",
-                (username,),
-            )
-            row = cursor.fetchone()
-            return self._row_to_entity(row) if row else None
+        """Получить пользователя по username"""
+        columns_str = ", ".join(self._get_columns())
+        query = text(
+            f"SELECT id, {columns_str} FROM {self._get_table_name()} WHERE username = :username"
+        )
+        result = self.db.execute(query, {"username": username})
+        row = result.fetchone()
+        return self._row_to_entity(row) if row else None
 
     def get_active_users(self) -> List[User]:
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE is_active = 1"
-            )
-            rows = cursor.fetchall()
-            return [self._row_to_entity(row) for row in rows]
+        """Получить активных пользователей"""
+        columns_str = ", ".join(self._get_columns())
+        query = text(
+            f"SELECT id, {columns_str} FROM {self._get_table_name()} WHERE is_active = TRUE"
+        )
+        result = self.db.execute(query)
+        rows = result.fetchall()
+        return [self._row_to_entity(row) for row in rows]
 
     def get_by_id(self, user_id: int) -> User:
         user = super().get_by_id(user_id)
@@ -78,7 +88,7 @@ class UserRepository(BaseRepository[User]):
             return super().create(entity)
         except Exception as e:
             error_msg = str(e)
-            if "UNIQUE constraint failed" in error_msg:
+            if "UNIQUE constraint" in error_msg or "duplicate key" in error_msg:
                 if "username" in error_msg:
                     raise UniqueConstraintError("User", "username", entity.username)
                 elif "email" in error_msg:
@@ -94,7 +104,7 @@ class UserRepository(BaseRepository[User]):
             return result
         except Exception as e:
             error_msg = str(e)
-            if "UNIQUE constraint failed" in error_msg:
+            if "UNIQUE constraint" in error_msg or "duplicate key" in error_msg:
                 if "username" in error_msg:
                     raise UniqueConstraintError("User", "username", entity.username)
                 elif "email" in error_msg:

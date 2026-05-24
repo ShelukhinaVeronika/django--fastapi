@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Form, File, UploadFile
 from typing import List, Optional
 from src.schemas.comments import Comment, CommentCreate, CommentUpdate
 from src.repositories.comment_repository import CommentRepository
@@ -19,22 +19,25 @@ from src.exceptions import (
     ConflictHTTPError,
     BadRequestHTTPError,
 )
+from src.api.upload import save_image, delete_image
 from src.auth.dependencies import get_current_user
 from src.schemas.users import User
+from sqlalchemy.orm import Session
+from src.database import get_db
 
 router = APIRouter(prefix="/comments", tags=["Comments"])
 
 
-def get_comment_repository():
-    return CommentRepository("db.sqlite3")
+def get_comment_repository(db: Session = Depends(get_db)):
+    return CommentRepository(db)
 
 
-def get_post_repository():
-    return PostRepository("db.sqlite3")
+def get_post_repository(db: Session = Depends(get_db)):
+    return PostRepository(db)
 
 
-def get_user_repository():
-    return UserRepository("db.sqlite3")
+def get_user_repository(db: Session = Depends(get_db)):
+    return UserRepository(db)
 
 
 @router.get("/", response_model=List[Comment])
@@ -43,17 +46,18 @@ def get_all_comments(
     limit: int = 100,
     post_id: Optional[int] = None,
     only_published: bool = False,
+    db: Session = Depends(get_db),
 ):
     """Получить все комментарии (можно фильтровать по post_id)"""
-    repository = get_comment_repository()
+    repository = get_comment_repository(db)
     use_case = GetAllCommentsUseCase(repository)
     return use_case.execute(skip, limit, post_id, only_published)
 
 
 @router.get("/{comment_id}", response_model=Comment)
-def get_comment_by_id(comment_id: int):
+def get_comment_by_id(comment_id: int, db: Session = Depends(get_db)):
     """Получить комментарий по ID"""
-    repository = get_comment_repository()
+    repository = get_comment_repository(db)
     use_case = GetCommentByIdUseCase(repository)
     try:
         return use_case.execute(comment_id)
@@ -63,18 +67,33 @@ def get_comment_by_id(comment_id: int):
 
 @router.post("/", response_model=Comment, status_code=status.HTTP_201_CREATED)
 def create_comment(
-    comment_data: CommentCreate, current_user: User = Depends(get_current_user)
+    text: str = Form(...),
+    post_id: int = Form(...),
+    is_published: bool = Form(True),
+    image: UploadFile = File(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Создать новый комментарий"""
-    comment_repository = get_comment_repository()
-    post_repository = get_post_repository()
-    user_repository = get_user_repository()
+    """Создать новый комментарий с картинкой"""
+    comment_repository = get_comment_repository(db)
+    post_repository = get_post_repository(db)
+    user_repository = get_user_repository(db)
 
-    if comment_data.author_id and comment_data.author_id != current_user.id:
-        raise HTTPException(
-            status_code=403, detail="You cannot create comment for another user"
-        )
-    comment_data.author_id = current_user.id
+    post = post_repository.get_by_id(post_id)
+    if not post:
+        raise NotFoundHTTPError("Post", post_id)
+
+    image_url = None
+    if image:
+        image_url = save_image(image, current_user.id)
+
+    comment_data = CommentCreate(
+        text=text,
+        post_id=post_id,
+        is_published=is_published,
+        image=image_url,
+        author_id=current_user.id,
+    )
 
     use_case = CreateCommentUseCase(
         comment_repository, post_repository, user_repository
@@ -84,8 +103,6 @@ def create_comment(
         return use_case.execute(comment_data)
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
-    except UniqueConstraintError as e:
-        raise ConflictHTTPError(e.entity_name, e.field, e.value)
     except ValidationError as e:
         raise BadRequestHTTPError(e.message, e.field)
 
@@ -93,11 +110,14 @@ def create_comment(
 @router.put("/{comment_id}", response_model=Comment)
 def update_comment(
     comment_id: int,
-    comment_data: CommentUpdate,
+    text: Optional[str] = Form(None),
+    is_published: Optional[bool] = Form(None),
+    image: UploadFile = File(None),
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Обновить комментарий"""
-    repository = get_comment_repository()
+    """Обновить комментарий с возможностью смены картинки"""
+    repository = get_comment_repository(db)
 
     try:
         existing_comment = repository.get_by_id(comment_id)
@@ -111,6 +131,14 @@ def update_comment(
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
+    image_url = existing_comment.image
+    if image:
+        if existing_comment.image:
+            delete_image(existing_comment.image)
+        image_url = save_image(image, current_user.id)
+
+    comment_data = CommentUpdate(text=text, is_published=is_published, image=image_url)
+
     use_case = UpdateCommentUseCase(repository)
 
     try:
@@ -122,9 +150,13 @@ def update_comment(
 
 
 @router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_comment(comment_id: int, current_user: User = Depends(get_current_user)):
+def delete_comment(
+    comment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Удалить комментарий"""
-    repository = get_comment_repository()
+    repository = get_comment_repository(db)
 
     try:
         existing_comment = repository.get_by_id(comment_id)

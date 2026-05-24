@@ -1,8 +1,8 @@
-"""_
+"""initial_migration
 
-Revision ID: fda9ec79860b
+Revision ID: 4265de28521c
 Revises:
-Create Date: 2026-05-15 11:04:14.022797
+Create Date: 2026-05-24 19:18:58.374823
 
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision: str = "fda9ec79860b"
+revision: str = "4265de28521c"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -35,7 +35,7 @@ def upgrade() -> None:
         sa.Column(
             "date_joined",
             sa.DateTime(timezone=True),
-            server_default=sa.text("(CURRENT_TIMESTAMP)"),
+            server_default=sa.text("now()"),
             nullable=False,
         ),
         sa.Column("last_login", sa.DateTime(timezone=True), nullable=True),
@@ -56,7 +56,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            server_default=sa.text("(CURRENT_TIMESTAMP)"),
+            server_default=sa.text("now()"),
             nullable=False,
         ),
         sa.PrimaryKeyConstraint("id"),
@@ -73,7 +73,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            server_default=sa.text("(CURRENT_TIMESTAMP)"),
+            server_default=sa.text("now()"),
             nullable=False,
         ),
         sa.PrimaryKeyConstraint("id"),
@@ -87,7 +87,7 @@ def upgrade() -> None:
         sa.Column(
             "pub_date",
             sa.DateTime(timezone=True),
-            server_default=sa.text("(CURRENT_TIMESTAMP)"),
+            server_default=sa.text("now()"),
             nullable=False,
         ),
         sa.Column("image", sa.String(length=500), nullable=True),
@@ -98,7 +98,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            server_default=sa.text("(CURRENT_TIMESTAMP)"),
+            server_default=sa.text("now()"),
             nullable=False,
         ),
         sa.ForeignKeyConstraint(["author_id"], ["auth_user.id"], ondelete="CASCADE"),
@@ -115,13 +115,14 @@ def upgrade() -> None:
         "blog_comment",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("text", sa.Text(), nullable=False),
+        sa.Column("image", sa.String(length=500), nullable=True),
         sa.Column("post_id", sa.Integer(), nullable=False),
         sa.Column("author_id", sa.Integer(), nullable=False),
         sa.Column("is_published", sa.Boolean(), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            server_default=sa.text("(CURRENT_TIMESTAMP)"),
+            server_default=sa.text("now()"),
             nullable=False,
         ),
         sa.ForeignKeyConstraint(["author_id"], ["auth_user.id"], ondelete="CASCADE"),

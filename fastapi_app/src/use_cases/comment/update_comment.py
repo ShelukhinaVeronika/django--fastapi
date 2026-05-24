@@ -13,7 +13,7 @@ class UpdateCommentUseCase:
     def execute(self, comment_id: int, comment_data: CommentUpdate) -> Comment:
         existing_comment = self.repository.get_by_id(comment_id)
         if not existing_comment:
-            raise NotFoundError("Comment", comment_data.post_id)
+            raise NotFoundError("Comment", comment_id)
 
         updated_comment = Comment(
             id=comment_id,
@@ -21,6 +21,11 @@ class UpdateCommentUseCase:
                 comment_data.text
                 if comment_data.text is not None
                 else existing_comment.text
+            ),
+            image=(
+                comment_data.image
+                if comment_data.image is not None
+                else existing_comment.image
             ),
             post_id=existing_comment.post_id,
             author_id=existing_comment.author_id,

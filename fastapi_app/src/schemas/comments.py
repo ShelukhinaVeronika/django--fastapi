@@ -8,6 +8,7 @@ from src.exceptions import ValidationError
 class Comment(BaseSchema):
     id: Optional[int] = None
     text: str = Field(..., min_length=1)
+    image: Optional[str] = None
     post_id: int
     author_id: int
     created_at: datetime = Field(default_factory=datetime.now)
@@ -16,6 +17,7 @@ class Comment(BaseSchema):
 
 class CommentCreate(BaseSchema):
     text: str = Field(..., min_length=1)
+    image: Optional[str] = None
     post_id: int
     author_id: Optional[int] = None
     is_published: bool = True
@@ -56,6 +58,7 @@ class CommentCreate(BaseSchema):
 
 class CommentUpdate(BaseSchema):
     text: Optional[str] = Field(None, min_length=1)
+    image: Optional[str] = None
     is_published: Optional[bool] = None
 
     @field_validator("text")

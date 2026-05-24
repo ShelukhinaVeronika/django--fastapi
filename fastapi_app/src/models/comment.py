@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, ForeignKey
+from sqlalchemy import Column, Integer, Text, ForeignKey, String
 from sqlalchemy.orm import relationship
 from src.database import Base
 from .base import PublishedMixin, TimestampMixin
@@ -9,7 +9,7 @@ class Comment(Base, PublishedMixin, TimestampMixin):
 
     id = Column(Integer, primary_key=True, index=True)
     text = Column(Text, nullable=False)
-
+    image = Column(String(500), nullable=True)
     post_id = Column(
         Integer, ForeignKey("blog_post.id", ondelete="CASCADE"), nullable=False
     )

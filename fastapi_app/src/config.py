@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "sqlite:///./db.sqlite3"
+    DATABASE_URL: str = "postgresql://postgres:postgres@db:5432/blog_db"
 
     APP_NAME: str = "Blog API"
     DEBUG: bool = False

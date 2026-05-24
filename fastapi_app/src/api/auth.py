@@ -10,14 +10,14 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 def get_user_repository(db: Session = Depends(get_db)):
-    return UserRepository("db.sqlite3")
+    return UserRepository(db)
 
 
 @router.post("/login")
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
 ):
-    repository = UserRepository("db.sqlite3")
+    repository = UserRepository(db)
 
     user = repository.get_by_username(form_data.username)
     if not user:

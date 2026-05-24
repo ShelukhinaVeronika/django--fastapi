@@ -1,4 +1,6 @@
 from typing import List, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 from src.repositories.base_repository import BaseRepository
 from src.models.category import Category
 from src.exceptions import NotFoundError, UniqueConstraintError
@@ -7,6 +9,9 @@ from src.exceptions import NotFoundError, UniqueConstraintError
 class CategoryRepository(BaseRepository[Category]):
     """Репозиторий для работы с категориями"""
 
+    def __init__(self, db: Session):
+        super().__init__(db)
+
     def _get_table_name(self) -> str:
         return "blog_category"
 
@@ -14,7 +19,7 @@ class CategoryRepository(BaseRepository[Category]):
         return ["title", "description", "slug", "is_published", "created_at"]
 
     def _row_to_entity(self, row) -> Category:
-        """Преобразуем строку SQLite в Pydantic модель Category"""
+        """Преобразуем строку из БД в SQLAlchemy модель Category"""
         return Category(
             id=row[0],
             title=row[1],
@@ -26,30 +31,33 @@ class CategoryRepository(BaseRepository[Category]):
 
     def get_by_slug(self, slug: str) -> Optional[Category]:
         """Получить категорию по slug"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE slug = ?", (slug,)
-            )
-            row = cursor.fetchone()
-            return self._row_to_entity(row) if row else None
+        columns_str = ", ".join(self._get_columns())
+        query = text(
+            f"SELECT id, {columns_str} FROM {self._get_table_name()} WHERE slug = :slug"
+        )
+        result = self.db.execute(query, {"slug": slug})
+        row = result.fetchone()
+        return self._row_to_entity(row) if row else None
 
     def get_by_title(self, title: str) -> Optional[Category]:
         """Получить категорию по названию"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE title = ?", (title,)
-            )
-            row = cursor.fetchone()
-            return self._row_to_entity(row) if row else None
+        columns_str = ", ".join(self._get_columns())
+        query = text(
+            f"SELECT id, {columns_str} FROM {self._get_table_name()} WHERE title = :title"
+        )
+        result = self.db.execute(query, {"title": title})
+        row = result.fetchone()
+        return self._row_to_entity(row) if row else None
 
     def get_published(self) -> List[Category]:
         """Получить только опубликованные категории"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE is_published = 1"
-            )
-            rows = cursor.fetchall()
-            return [self._row_to_entity(row) for row in rows]
+        columns_str = ", ".join(self._get_columns())
+        query = text(
+            f"SELECT id, {columns_str} FROM {self._get_table_name()} WHERE is_published = TRUE"
+        )
+        result = self.db.execute(query)
+        rows = result.fetchall()
+        return [self._row_to_entity(row) for row in rows]
 
     def get_by_id(self, category_id: int) -> Category:
         category = super().get_by_id(category_id)
@@ -61,10 +69,11 @@ class CategoryRepository(BaseRepository[Category]):
         try:
             return super().create(entity)
         except Exception as e:
-            if "UNIQUE constraint failed" in str(e):
-                if "title" in str(e):
+            error_msg = str(e)
+            if "UNIQUE constraint" in error_msg or "duplicate key" in error_msg:
+                if "title" in error_msg:
                     raise UniqueConstraintError("Category", "title", entity.title)
-                elif "slug" in str(e):
+                elif "slug" in error_msg:
                     raise UniqueConstraintError("Category", "slug", entity.slug)
                 else:
                     raise UniqueConstraintError("Category", "unknown", str(e))
@@ -76,7 +85,7 @@ class CategoryRepository(BaseRepository[Category]):
             return super().update(category_id, entity)
         except Exception as e:
             error_msg = str(e)
-            if "UNIQUE constraint failed" in error_msg:
+            if "UNIQUE constraint" in error_msg or "duplicate key" in error_msg:
                 if "title" in error_msg:
                     raise UniqueConstraintError("Category", "title", entity.title)
                 elif "slug" in error_msg:

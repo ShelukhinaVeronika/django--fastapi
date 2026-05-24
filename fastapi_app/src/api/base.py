@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Form, File, UploadFile
 from typing import List, Optional
 from src.schemas.posts import Post, PostCreate, PostUpdate
 from src.repositories.post_repository import PostRepository
@@ -23,28 +23,31 @@ from src.exceptions import (
 )
 from src.auth.dependencies import get_current_user
 from src.schemas.users import User
+from src.api.upload import save_image, delete_image
+from sqlalchemy.orm import Session
+from src.database import get_db
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
 
-def get_post_repository():
-    return PostRepository("db.sqlite3")
+def get_post_repository(db: Session = Depends(get_db)):
+    return PostRepository(db)
 
 
-def get_user_repository():
-    return UserRepository("db.sqlite3")
+def get_user_repository(db: Session = Depends(get_db)):
+    return UserRepository(db)
 
 
-def get_category_repository():
-    return CategoryRepository("db.sqlite3")
+def get_category_repository(db: Session = Depends(get_db)):
+    return CategoryRepository(db)
 
 
-def get_location_repository():
-    return LocationRepository("db.sqlite3")
+def get_location_repository(db: Session = Depends(get_db)):
+    return LocationRepository(db)
 
 
-def get_comment_repository():
-    return CommentRepository("db.sqlite3")
+def get_comment_repository(db: Session = Depends(get_db)):
+    return CommentRepository(db)
 
 
 @router.get("/", response_model=List[Post])
@@ -55,9 +58,10 @@ def get_all_posts(
     category_id: Optional[int] = None,
     location_id: Optional[int] = None,
     only_published: bool = False,
+    db: Session = Depends(get_db),
 ):
     """Получить все посты с фильтрацией"""
-    repository = get_post_repository()
+    repository = get_post_repository(db)
     use_case = GetAllPostsUseCase(repository)
     return use_case.execute(
         skip, limit, author_id, category_id, location_id, only_published
@@ -65,10 +69,12 @@ def get_all_posts(
 
 
 @router.get("/{post_id}")
-def get_post_by_id(post_id: int, include_comments: bool = True):
+def get_post_by_id(
+    post_id: int, include_comments: bool = True, db: Session = Depends(get_db)
+):
     """Получить пост по ID с комментариями"""
-    post_repository = get_post_repository()
-    comment_repository = get_comment_repository()
+    post_repository = get_post_repository(db)
+    comment_repository = get_comment_repository(db)
     use_case = GetPostByIdUseCase(post_repository, comment_repository)
 
     try:
@@ -78,18 +84,35 @@ def get_post_by_id(post_id: int, include_comments: bool = True):
 
 
 @router.post("/", response_model=Post, status_code=status.HTTP_201_CREATED)
-def create_post(post_data: PostCreate, current_user: User = Depends(get_current_user)):
-    """Создать новый пост"""
-    post_repository = get_post_repository()
-    user_repository = get_user_repository()
-    category_repository = get_category_repository()
-    location_repository = get_location_repository()
+def create_post(
+    title: str = Form(...),
+    text: str = Form(...),
+    location_id: Optional[int] = Form(None),
+    category_id: Optional[int] = Form(None),
+    is_published: bool = Form(True),
+    image: UploadFile = File(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Создать новый пост с картинкой"""
+    post_repository = get_post_repository(db)
+    user_repository = get_user_repository(db)
+    category_repository = get_category_repository(db)
+    location_repository = get_location_repository(db)
 
-    if post_data.author_id and post_data.author_id != current_user.id:
-        raise HTTPException(
-            status_code=403, detail="You cannot create post for another user"
-        )
-    post_data.author_id = current_user.id
+    image_url = None
+    if image:
+        image_url = save_image(image, current_user.id)
+
+    post_data = PostCreate(
+        title=title,
+        text=text,
+        location_id=location_id,
+        category_id=category_id,
+        is_published=is_published,
+        image=image_url,
+        author_id=current_user.id,
+    )
 
     use_case = CreatePostUseCase(
         post_repository, user_repository, category_repository, location_repository
@@ -107,13 +130,21 @@ def create_post(post_data: PostCreate, current_user: User = Depends(get_current_
 
 @router.put("/{post_id}", response_model=Post)
 def update_post(
-    post_id: int, post_data: PostUpdate, current_user: User = Depends(get_current_user)
+    post_id: int,
+    title: Optional[str] = Form(None),
+    text: Optional[str] = Form(None),
+    location_id: Optional[int] = Form(None),
+    category_id: Optional[int] = Form(None),
+    is_published: Optional[bool] = Form(None),
+    image: UploadFile = File(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Обновить пост"""
-    post_repository = get_post_repository()
-    user_repository = get_user_repository()
-    category_repository = get_category_repository()
-    location_repository = get_location_repository()
+    """Обновить пост с возможностью смены картинки"""
+    post_repository = get_post_repository(db)
+    user_repository = get_user_repository(db)
+    category_repository = get_category_repository(db)
+    location_repository = get_location_repository(db)
 
     try:
         existing_post = post_repository.get_by_id(post_id)
@@ -123,6 +154,21 @@ def update_post(
             )
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
+
+    image_url = existing_post.image
+    if image:
+        if existing_post.image:
+            delete_image(existing_post.image)
+        image_url = save_image(image, current_user.id)
+
+    post_data = PostUpdate(
+        title=title,
+        text=text,
+        location_id=location_id,
+        category_id=category_id,
+        is_published=is_published,
+        image=image_url,
+    )
 
     use_case = UpdatePostUseCase(
         post_repository, user_repository, category_repository, location_repository
@@ -137,21 +183,27 @@ def update_post(
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(post_id: int, current_user: User = Depends(get_current_user)):
-    """Удалить пост"""
-    post_repository = get_post_repository()
-    comment_repository = get_comment_repository()
+def delete_post(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Удалить пост и его картинку"""
+    repository = get_post_repository(db)
 
     try:
-        existing_post = post_repository.get_by_id(post_id)
+        existing_post = repository.get_by_id(post_id)
         if existing_post.author_id != current_user.id and not current_user.is_superuser:
             raise HTTPException(
                 status_code=403, detail="You can only delete your own posts"
             )
+
+        if existing_post.image:
+            delete_image(existing_post.image)
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
-    use_case = DeletePostUseCase(post_repository, comment_repository)
+    use_case = DeletePostUseCase(repository)
     try:
         result = use_case.execute(post_id)
         if not result:

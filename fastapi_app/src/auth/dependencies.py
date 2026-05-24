@@ -10,7 +10,9 @@ from src.models.user import User
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+def get_current_user(
+    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+) -> User:
     payload = decode_access_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -19,7 +21,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    repository = UserRepository("db.sqlite3")
+    repository = UserRepository(db)
     user = repository.get_by_id(int(user_id))
 
     if not user:

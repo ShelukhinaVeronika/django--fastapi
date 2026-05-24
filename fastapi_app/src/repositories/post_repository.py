@@ -1,5 +1,7 @@
 from typing import List
 from datetime import datetime
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 from src.repositories.base_repository import BaseRepository
 from src.models.post import Post
 from src.exceptions import NotFoundError, UniqueConstraintError, ForeignKeyError
@@ -7,6 +9,9 @@ from src.exceptions import NotFoundError, UniqueConstraintError, ForeignKeyError
 
 class PostRepository(BaseRepository[Post]):
     """Репозиторий для работы с постами"""
+
+    def __init__(self, db: Session):
+        super().__init__(db)
 
     def _get_table_name(self) -> str:
         return "blog_post"
@@ -25,7 +30,7 @@ class PostRepository(BaseRepository[Post]):
         ]
 
     def _row_to_entity(self, row) -> Post:
-        """Преобразуем строку SQLite в Pydantic модель Post"""
+        """Преобразуем строку из БД в SQLAlchemy модель Post"""
         return Post(
             id=row[0],
             title=row[1],
@@ -33,62 +38,75 @@ class PostRepository(BaseRepository[Post]):
             pub_date=row[3],
             image=row[4],
             author_id=row[5],
-            location_id=row[6],
-            category_id=row[7],
+            location_id=row[6] if row[6] else None,
+            category_id=row[7] if row[7] else None,
             is_published=bool(row[8]),
             created_at=row[9],
         )
 
     def get_by_author(self, author_id: int) -> List[Post]:
         """Получить посты автора"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE author_id = ?",
-                (author_id,),
-            )
-            rows = cursor.fetchall()
-            return [self._row_to_entity(row) for row in rows]
+        columns_str = ", ".join(self._get_columns())
+        query = text(f"""
+            SELECT id, {columns_str} 
+            FROM {self._get_table_name()} 
+            WHERE author_id = :author_id
+        """)
+        result = self.db.execute(query, {"author_id": author_id})
+        rows = result.fetchall()
+        return [self._row_to_entity(row) for row in rows]
 
     def get_by_category(self, category_id: int) -> List[Post]:
         """Получить посты категории"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE category_id = ?",
-                (category_id,),
-            )
-            rows = cursor.fetchall()
-            return [self._row_to_entity(row) for row in rows]
+        columns_str = ", ".join(self._get_columns())
+        query = text(f"""
+            SELECT id, {columns_str} 
+            FROM {self._get_table_name()} 
+            WHERE category_id = :category_id
+        """)
+        result = self.db.execute(query, {"category_id": category_id})
+        rows = result.fetchall()
+        return [self._row_to_entity(row) for row in rows]
 
     def get_by_location(self, location_id: int) -> List[Post]:
         """Получить посты локации"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE location_id = ?",
-                (location_id,),
-            )
-            rows = cursor.fetchall()
-            return [self._row_to_entity(row) for row in rows]
+        columns_str = ", ".join(self._get_columns())
+        query = text(f"""
+            SELECT id, {columns_str} 
+            FROM {self._get_table_name()} 
+            WHERE location_id = :location_id
+        """)
+        result = self.db.execute(query, {"location_id": location_id})
+        rows = result.fetchall()
+        return [self._row_to_entity(row) for row in rows]
 
     def get_published_posts(self) -> List[Post]:
         """Получить только опубликованные посты"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE is_published = 1"
-            )
-            rows = cursor.fetchall()
-            return [self._row_to_entity(row) for row in rows]
+        columns_str = ", ".join(self._get_columns())
+        query = text(f"""
+            SELECT id, {columns_str} 
+            FROM {self._get_table_name()} 
+            WHERE is_published = TRUE
+        """)
+        result = self.db.execute(query)
+        rows = result.fetchall()
+        return [self._row_to_entity(row) for row in rows]
 
     def get_posts_by_date_range(
         self, start_date: datetime, end_date: datetime
     ) -> List[Post]:
         """Получить посты за период"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                f"SELECT * FROM {self._get_table_name()} WHERE pub_date BETWEEN ? AND ?",
-                (start_date, end_date),
-            )
-            rows = cursor.fetchall()
-            return [self._row_to_entity(row) for row in rows]
+        columns_str = ", ".join(self._get_columns())
+        query = text(f"""
+            SELECT id, {columns_str} 
+            FROM {self._get_table_name()} 
+            WHERE pub_date BETWEEN :start_date AND :end_date
+        """)
+        result = self.db.execute(
+            query, {"start_date": start_date, "end_date": end_date}
+        )
+        rows = result.fetchall()
+        return [self._row_to_entity(row) for row in rows]
 
     def get_by_id(self, post_id: int) -> Post:
         post = super().get_by_id(post_id)
@@ -101,12 +119,15 @@ class PostRepository(BaseRepository[Post]):
             return super().create(entity)
         except Exception as e:
             error_msg = str(e)
-            if "UNIQUE constraint failed" in error_msg:
+            if "UNIQUE constraint" in error_msg or "duplicate key" in error_msg:
                 if "slug" in error_msg:
                     raise UniqueConstraintError("Post", "slug", entity.slug)
                 else:
                     raise UniqueConstraintError("Post", "unknown", str(e))
-            if "FOREIGN KEY constraint failed" in error_msg:
+            if (
+                "FOREIGN KEY constraint" in error_msg
+                or "violates foreign key constraint" in error_msg
+            ):
                 if "author_id" in error_msg:
                     raise ForeignKeyError("User", "author_id", entity.author_id)
                 elif "category_id" in error_msg:
@@ -122,12 +143,15 @@ class PostRepository(BaseRepository[Post]):
             return result
         except Exception as e:
             error_msg = str(e)
-            if "UNIQUE constraint failed" in error_msg:
+            if "UNIQUE constraint" in error_msg or "duplicate key" in error_msg:
                 if "slug" in error_msg:
                     raise UniqueConstraintError("Post", "slug", entity.slug)
                 else:
                     raise UniqueConstraintError("Post", "unknown", str(e))
-            if "FOREIGN KEY constraint failed" in error_msg:
+            if (
+                "FOREIGN KEY constraint" in error_msg
+                or "violates foreign key constraint" in error_msg
+            ):
                 if "author_id" in error_msg:
                     raise ForeignKeyError("User", "author_id", entity.author_id)
                 elif "category_id" in error_msg:

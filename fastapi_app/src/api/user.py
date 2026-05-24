@@ -20,34 +20,41 @@ from src.exceptions import (
     BadRequestHTTPError,
 )
 from src.auth.dependencies import get_current_user
+from sqlalchemy.orm import Session
+from src.database import get_db
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-def get_user_repository():
-    return UserRepository("db.sqlite3")
+def get_user_repository(db: Session = Depends(get_db)):
+    return UserRepository(db)
 
 
-def get_post_repository():
-    return PostRepository("db.sqlite3")
+def get_post_repository(db: Session = Depends(get_db)):
+    return PostRepository(db)
 
 
-def get_comment_repository():
-    return CommentRepository("db.sqlite3")
+def get_comment_repository(db: Session = Depends(get_db)):
+    return CommentRepository(db)
 
 
 @router.get("/", response_model=List[User])
-def get_all_users(skip: int = 0, limit: int = 100, only_active: bool = False):
+def get_all_users(
+    skip: int = 0,
+    limit: int = 100,
+    only_active: bool = False,
+    db: Session = Depends(get_db),
+):
     """Получить всех пользователей"""
-    repository = get_user_repository()
+    repository = get_user_repository(db)
     use_case = GetAllUsersUseCase(repository)
     return use_case.execute(skip, limit, only_active)
 
 
 @router.get("/{user_id}", response_model=User)
-def get_user_by_id(user_id: int):
+def get_user_by_id(user_id: int, db: Session = Depends(get_db)):
     """Получить пользователя по ID"""
-    repository = get_user_repository()
+    repository = get_user_repository(db)
     use_case = GetUserByIdUseCase(repository)
     try:
         return use_case.execute(user_id)
@@ -56,9 +63,9 @@ def get_user_by_id(user_id: int):
 
 
 @router.post("/", response_model=User, status_code=status.HTTP_201_CREATED)
-def create_user(user_data: UserCreate):
+def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
     """Создать нового пользователя"""
-    repository = get_user_repository()
+    repository = get_user_repository(db)
     use_case = CreateUserUseCase(repository)
 
     try:
@@ -70,17 +77,21 @@ def create_user(user_data: UserCreate):
 
 
 @router.get("/me", response_model=User)
-def get_current_user_info(current_user: User = Depends(get_current_user)):
+def get_current_user_info(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """Получить информацию о текущем пользователе"""
     return current_user
 
 
 @router.put("/me", response_model=User)
 def update_current_user(
-    user_data: UserUpdate, current_user: User = Depends(get_current_user)
+    user_data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Обновить текущего пользователя"""
-    repository = get_user_repository()
+    repository = get_user_repository(db)
     use_case = UpdateUserUseCase(repository)
 
     try:
@@ -94,11 +105,13 @@ def update_current_user(
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
-def delete_current_user(current_user: User = Depends(get_current_user)):
+def delete_current_user(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """Удалить текущего пользователя и все его посты и комментарии"""
-    user_repository = get_user_repository()
-    post_repository = get_post_repository()
-    comment_repository = get_comment_repository()
+    user_repository = get_user_repository(db)
+    post_repository = get_post_repository(db)
+    comment_repository = get_comment_repository(db)
 
     use_case = DeleteUserUseCase(user_repository, post_repository, comment_repository)
 
@@ -113,13 +126,16 @@ def delete_current_user(current_user: User = Depends(get_current_user)):
 
 @router.put("/{user_id}", response_model=User)
 def update_user(
-    user_id: int, user_data: UserUpdate, current_user: User = Depends(get_current_user)
+    user_id: int,
+    user_data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Обновить пользователя (только для админов)"""
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    repository = get_user_repository()
+    repository = get_user_repository(db)
     use_case = UpdateUserUseCase(repository)
 
     try:
@@ -131,7 +147,11 @@ def update_user(
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int, current_user: User = Depends(get_current_user)):
+def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Удалить пользователя (только для админов)"""
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -139,9 +159,9 @@ def delete_user(user_id: int, current_user: User = Depends(get_current_user)):
     if current_user.id == user_id:
         raise HTTPException(status_code=400, detail="You cannot delete yourself")
 
-    user_repository = get_user_repository()
-    post_repository = get_post_repository()
-    comment_repository = get_comment_repository()
+    user_repository = get_user_repository(db)
+    post_repository = get_post_repository(db)
+    comment_repository = get_comment_repository(db)
 
     use_case = DeleteUserUseCase(user_repository, post_repository, comment_repository)
 

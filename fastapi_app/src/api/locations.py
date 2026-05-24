@@ -19,26 +19,33 @@ from src.exceptions import (
 )
 from src.auth.dependencies import get_current_user
 from src.schemas.users import User
+from sqlalchemy.orm import Session
+from src.database import get_db
 
 router = APIRouter(prefix="/locations", tags=["Locations"])
 
 
-def get_location_repository():
-    return LocationRepository("db.sqlite3")
+def get_location_repository(db: Session = Depends(get_db)):
+    return LocationRepository(db)
 
 
 @router.get("/", response_model=List[Location])
-def get_all_locations(skip: int = 0, limit: int = 100, only_published: bool = False):
+def get_all_locations(
+    skip: int = 0,
+    limit: int = 100,
+    only_published: bool = False,
+    db: Session = Depends(get_db),
+):
     """Получить все локации"""
-    repository = get_location_repository()
+    repository = get_location_repository(db)
     use_case = GetAllLocationsUseCase(repository)
     return use_case.execute(skip, limit, only_published)
 
 
 @router.get("/{location_id}", response_model=Location)
-def get_location_by_id(location_id: int):
+def get_location_by_id(location_id: int, db: Session = Depends(get_db)):
     """Получить локацию по ID"""
-    repository = get_location_repository()
+    repository = get_location_repository(db)
     use_case = GetLocationByIdUseCase(repository)
     try:
         return use_case.execute(location_id)
@@ -48,11 +55,13 @@ def get_location_by_id(location_id: int):
 
 @router.post("/", response_model=Location, status_code=status.HTTP_201_CREATED)
 def create_location(
-    location_data: LocationCreate, current_user: User = Depends(get_current_user)
+    location_data: LocationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Создать новую локацию"""
 
-    repository = get_location_repository()
+    repository = get_location_repository(db)
     use_case = CreateLocationUseCase(repository)
     try:
         return use_case.execute(location_data)
@@ -67,11 +76,12 @@ def update_location(
     location_id: int,
     location_data: LocationUpdate,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Обновить локацию"""
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")
-    repository = get_location_repository()
+    repository = get_location_repository(db)
     use_case = UpdateLocationUseCase(repository)
 
     try:
@@ -83,11 +93,15 @@ def update_location(
 
 
 @router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_location(location_id: int, current_user: User = Depends(get_current_user)):
+def delete_location(
+    location_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Удалить локацию"""
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")
-    repository = get_location_repository()
+    repository = get_location_repository(db)
     use_case = DeleteLocationUseCase(repository)
     try:
         result = use_case.execute(location_id)
