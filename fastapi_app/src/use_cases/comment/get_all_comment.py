@@ -5,16 +5,16 @@ from src.repositories.comment_repository import CommentRepository
 
 class GetAllCommentsUseCase:
     """Получить все комментарии"""
-    
+
     def __init__(self, repository: CommentRepository):
         self.repository = repository
-    
+
     def execute(
-        self, 
-        skip: int = 0, 
-        limit: int = 100, 
+        self,
+        skip: int = 0,
+        limit: int = 100,
         post_id: Optional[int] = None,
-        only_published: bool = False
+        only_published: bool = False,
     ) -> List[Comment]:
 
         if post_id:
@@ -23,5 +23,5 @@ class GetAllCommentsUseCase:
             comments = self.repository.get_published()
         else:
             comments = self.repository.get_all()
-        
-        return comments[skip:skip + limit]
+
+        return comments[skip : skip + limit]

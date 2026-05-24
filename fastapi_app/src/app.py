@@ -12,20 +12,17 @@ from src.api.auth import router as auth_router
 from src.middleware import LoggingMiddleware
 from src.exceptions import ValidationError, NotFoundError, UniqueConstraintError
 
-
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
 
 def create_app() -> FastAPI:
     app = FastAPI()
 
-
-
     app.add_middleware(LoggingMiddleware)
-    
+
     @app.exception_handler(ValidationError)
     async def validation_error_handler(request: Request, exc: ValidationError):
         logger.warning(f"Validation error: {exc.field} - {exc.message}")
@@ -35,10 +32,10 @@ def create_app() -> FastAPI:
                 "error": "Validation Error",
                 "field": exc.field,
                 "message": exc.message,
-                "value": exc.value
-            }
+                "value": exc.value,
+            },
         )
-    
+
     @app.exception_handler(NotFoundError)
     async def not_found_error_handler(request: Request, exc: NotFoundError):
         logger.warning(f"Not found: {exc.entity_name} id={exc.entity_id}")
@@ -47,12 +44,14 @@ def create_app() -> FastAPI:
             content={
                 "error": "Not Found",
                 "entity": exc.entity_name,
-                "id": exc.entity_id
-            }
+                "id": exc.entity_id,
+            },
         )
-    
+
     @app.exception_handler(UniqueConstraintError)
-    async def unique_constraint_error_handler(request: Request, exc: UniqueConstraintError):
+    async def unique_constraint_error_handler(
+        request: Request, exc: UniqueConstraintError
+    ):
         logger.warning(f"Conflict: {exc.entity_name} {exc.field}={exc.value}")
         return JSONResponse(
             status_code=409,
@@ -60,9 +59,10 @@ def create_app() -> FastAPI:
                 "error": "Conflict",
                 "entity": exc.entity_name,
                 "field": exc.field,
-                "value": exc.value
-            }
+                "value": exc.value,
+            },
         )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -70,7 +70,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     app.include_router(auth_router, tags=["Authentication"])
     app.include_router(base_router, prefix="/base", tags=["Base APIs"])
     app.include_router(categories_router, tags=["Categories"])

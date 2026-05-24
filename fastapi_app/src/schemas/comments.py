@@ -21,59 +21,54 @@ class CommentCreate(BaseSchema):
     is_published: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
 
-    @field_validator('text')
+    @field_validator("text")
     def validate_text(cls, v):
         if len(v) < 1:
             raise ValidationError(
-                field="text",
-                message="Comment text cannot be empty",
-                value=v
+                field="text", message="Comment text cannot be empty", value=v
             )
         if len(v) > 1000:
             raise ValidationError(
                 field="text",
                 message="Comment text is too long (max 1000 characters)",
-                value=v
+                value=v,
             )
         return v
-    
-    @field_validator('post_id')
+
+    @field_validator("post_id")
     def validate_post_id(cls, v):
         if v <= 0:
             raise ValidationError(
-                field="post_id",
-                message="post_id must be a positive integer",
-                value=v
+                field="post_id", message="post_id must be a positive integer", value=v
             )
         return v
-    
-    @field_validator('author_id')
+
+    @field_validator("author_id")
     def validate_author_id(cls, v):
         if v <= 0:
             raise ValidationError(
                 field="author_id",
                 message="author_id must be a positive integer",
-                value=v
+                value=v,
             )
         return v
+
 
 class CommentUpdate(BaseSchema):
     text: Optional[str] = Field(None, min_length=1)
     is_published: Optional[bool] = None
 
-    @field_validator('text')
+    @field_validator("text")
     def validate_text(cls, v):
         if v is not None:
             if len(v) < 1:
                 raise ValidationError(
-                    field="text",
-                    message="Comment text cannot be empty",
-                    value=v
+                    field="text", message="Comment text cannot be empty", value=v
                 )
             if len(v) > 1000:
                 raise ValidationError(
                     field="text",
                     message="Comment text is too long (max 1000 characters)",
-                    value=v
+                    value=v,
                 )
         return v

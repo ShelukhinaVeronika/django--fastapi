@@ -16,7 +16,9 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
     is_staff = Column(Boolean, default=False, nullable=False)
-    date_joined = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    date_joined = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     last_login = Column(DateTime(timezone=True), nullable=True)
 
     posts = relationship("Post", back_populates="author")

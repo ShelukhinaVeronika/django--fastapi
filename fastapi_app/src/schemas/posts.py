@@ -28,34 +28,34 @@ class PostCreate(BaseSchema):
     image: Optional[str] = None
     is_published: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
-    
-    @field_validator('author_id')
+
+    @field_validator("author_id")
     def validate_author_id(cls, v):
         if v <= 0:
             raise ValidationError(
                 field="author_id",
                 message="author_id must be a positive integer",
-                value=v
+                value=v,
             )
         return v
-    
-    @field_validator('category_id')
+
+    @field_validator("category_id")
     def validate_category_id(cls, v):
         if v is not None and v <= 0:
             raise ValidationError(
                 field="category_id",
                 message="category_id must be a positive integer",
-                value=v
+                value=v,
             )
         return v
-    
-    @field_validator('location_id')
+
+    @field_validator("location_id")
     def validate_location_id(cls, v):
         if v is not None and v <= 0:
             raise ValidationError(
                 field="location_id",
                 message="location_id must be a positive integer",
-                value=v
+                value=v,
             )
         return v
 
@@ -68,24 +68,23 @@ class PostUpdate(BaseSchema):
     category_id: Optional[int] = None
     image: Optional[str] = None
     is_published: Optional[bool] = None
-    
-    
-    @field_validator('category_id')
+
+    @field_validator("category_id")
     def validate_category_id(cls, v):
         if v is not None and v <= 0:
             raise ValidationError(
                 field="category_id",
                 message="category_id must be a positive integer",
-                value=v
+                value=v,
             )
         return v
-    
-    @field_validator('location_id')
+
+    @field_validator("location_id")
     def validate_location_id(cls, v):
         if v is not None and v <= 0:
             raise ValidationError(
                 field="location_id",
                 message="location_id must be a positive integer",
-                value=v
+                value=v,
             )
         return v

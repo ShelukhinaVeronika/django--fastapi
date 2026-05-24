@@ -12,7 +12,9 @@ class Category(Base):
     description = Column(Text, nullable=False)
     slug = Column(String(256), unique=True, nullable=False, index=True)
     is_published = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     posts = relationship("Post", back_populates="category")
 

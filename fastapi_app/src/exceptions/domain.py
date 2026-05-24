@@ -22,4 +22,6 @@ class PermissionError(DomainError):
     def __init__(self, action: str, entity: str):
         self.action = action
         self.entity = entity
-        super().__init__(f"Permission denied: {action} on {entity}", code="PERMISSION_DENIED")
+        super().__init__(
+            f"Permission denied: {action} on {entity}", code="PERMISSION_DENIED"
+        )

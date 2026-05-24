@@ -6,10 +6,10 @@ from src.exceptions import UniqueConstraintError
 
 class CreateCategoryUseCase:
     """Создать новую категорию"""
-    
+
     def __init__(self, repository: CategoryRepository):
         self.repository = repository
-    
+
     def execute(self, category_data: CategoryCreate) -> Category:
         existing_by_title = self.repository.get_by_title(category_data.title)
         if existing_by_title:
@@ -24,7 +24,7 @@ class CreateCategoryUseCase:
             description=category_data.description,
             slug=category_data.slug,
             is_published=category_data.is_published,
-            created_at=category_data.created_at
+            created_at=category_data.created_at,
         )
-        
+
         return self.repository.create(new_category)

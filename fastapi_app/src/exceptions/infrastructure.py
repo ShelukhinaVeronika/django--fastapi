@@ -25,4 +25,6 @@ class ForeignKeyError(DatabaseError):
         self.entity_name = entity_name
         self.field = field
         self.foreign_id = foreign_id
-        super().__init__(f"Related {entity_name} with id {foreign_id} not found for field {field}")
+        super().__init__(
+            f"Related {entity_name} with id {foreign_id} not found for field {field}"
+        )

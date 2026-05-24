@@ -8,19 +8,19 @@ from src.exceptions import NotFoundError
 
 class CreatePostUseCase:
     """Создать новый пост"""
-    
+
     def __init__(
         self,
         post_repository: PostRepository,
         user_repository: UserRepository,
         category_repository: CategoryRepository,
-        location_repository: LocationRepository
+        location_repository: LocationRepository,
     ):
         self.post_repository = post_repository
         self.user_repository = user_repository
         self.category_repository = category_repository
         self.location_repository = location_repository
-    
+
     def execute(self, post_data: PostCreate) -> Post:
         author = self.user_repository.get_by_id(post_data.author_id)
         if not author:
@@ -30,12 +30,12 @@ class CreatePostUseCase:
             category = self.category_repository.get_by_id(post_data.category_id)
             if not category:
                 raise NotFoundError("Category", post_data.category_id)
-        
+
         if post_data.location_id:
             location = self.location_repository.get_by_id(post_data.location_id)
             if not location:
                 raise NotFoundError("Location", post_data.location_id)
-            
+
         new_post = Post(
             title=post_data.title,
             text=post_data.text,
@@ -45,7 +45,7 @@ class CreatePostUseCase:
             category_id=post_data.category_id,
             image=post_data.image,
             is_published=post_data.is_published,
-            created_at=post_data.created_at
+            created_at=post_data.created_at,
         )
-        
+
         return self.post_repository.create(new_post)

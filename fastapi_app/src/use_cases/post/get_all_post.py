@@ -5,10 +5,10 @@ from src.repositories.post_repository import PostRepository
 
 class GetAllPostsUseCase:
     """Получить все посты"""
-    
+
     def __init__(self, repository: PostRepository):
         self.repository = repository
-    
+
     def execute(
         self,
         skip: int = 0,
@@ -16,7 +16,7 @@ class GetAllPostsUseCase:
         author_id: Optional[int] = None,
         category_id: Optional[int] = None,
         location_id: Optional[int] = None,
-        only_published: bool = False
+        only_published: bool = False,
     ) -> List[Post]:
         if only_published:
             posts = self.repository.get_published_posts()
@@ -28,5 +28,5 @@ class GetAllPostsUseCase:
             posts = self.repository.get_by_location(location_id)
         else:
             posts = self.repository.get_all()
-        
-        return posts[skip:skip + limit]
+
+        return posts[skip : skip + limit]

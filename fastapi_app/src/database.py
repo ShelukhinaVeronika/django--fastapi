@@ -19,14 +19,12 @@ if "sqlite" in settings.DATABASE_URL:
 else:
     connect_args = {}
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args=connect_args
-)
+engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
@@ -34,4 +32,3 @@ def get_db():
         yield db
     finally:
         db.close()
-

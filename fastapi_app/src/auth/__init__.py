@@ -5,9 +5,9 @@ from src.config import settings
 
 __all__ = [
     "verify_password",
-    "hash_password", 
+    "hash_password",
     "create_access_token",
     "decode_access_token",
     "get_current_user",
-    "settings"
+    "settings",
 ]
