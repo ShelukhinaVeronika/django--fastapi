@@ -6,11 +6,22 @@ from fastapi import UploadFile, HTTPException
 from pathlib import Path
 
 UPLOAD_DIR = "uploads/posts"
+MAX_FILE_SIZE = 5 * 1024 * 1024
 
 Path(UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
 
 
 def save_image(file: UploadFile, user_id: int) -> str:
+
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+    
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"File too large. Max size: {MAX_FILE_SIZE // (1024*1024)} MB"
+        )
 
     allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
     if file.content_type not in allowed_types:

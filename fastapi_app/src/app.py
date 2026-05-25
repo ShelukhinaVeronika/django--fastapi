@@ -12,6 +12,8 @@ from src.api.auth import router as auth_router
 from src.middleware import LoggingMiddleware
 from src.exceptions import ValidationError, NotFoundError, UniqueConstraintError
 
+from fastapi.staticfiles import StaticFiles
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -77,5 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(locations_router, tags=["Locations"])
     app.include_router(comments_router, tags=["Comments"])
     app.include_router(users_router, tags=["Users"])
+
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
     return app

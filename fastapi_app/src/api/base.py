@@ -189,7 +189,8 @@ def delete_post(
     db: Session = Depends(get_db),
 ):
     """Удалить пост и его картинку"""
-    repository = get_post_repository(db)
+    post_repository = get_post_repository(db)
+    comment_repository = get_comment_repository(db)
 
     try:
         existing_post = repository.get_by_id(post_id)
@@ -203,7 +204,7 @@ def delete_post(
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
-    use_case = DeletePostUseCase(repository)
+    use_case = DeletePostUseCase(post_repository, comment_repository)
     try:
         result = use_case.execute(post_id)
         if not result:
