@@ -21,10 +21,31 @@ class GetPostByIdUseCase:
         if not post:
             raise NotFoundError("Post", post_id)
 
-        result = post.model_dump()
+        result = {
+            "id": post.id,
+            "title": post.title,
+            "text": post.text,
+            "pub_date": post.pub_date,
+            "author_id": post.author_id,
+            "location_id": post.location_id,
+            "category_id": post.category_id,
+            "is_published": post.is_published,
+            "created_at": post.created_at,
+            "images": [img.url for img in post.images] if hasattr(post, 'images') else []
+        }
 
         if include_comments:
             comments = self.comment_repository.get_by_post(post_id)
-            result["comments"] = [c.model_dump() for c in comments]
+            result["comments"] = [
+                {
+                    "id": c.id,
+                    "text": c.text,
+                    "author_id": c.author_id,
+                    "created_at": c.created_at,
+                    "is_published": c.is_published,
+                    "images": [img.url for img in c.images] if hasattr(c, 'images') else []
+                }
+                for c in comments
+            ]
 
         return result

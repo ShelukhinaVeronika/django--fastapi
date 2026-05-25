@@ -19,3 +19,4 @@ class Comment(Base, PublishedMixin, TimestampMixin):
 
     post = relationship("Post", back_populates="comments")
     author = relationship("User", back_populates="comments")
+    images = relationship("Image", back_populates="comment", cascade="all, delete-orphan")

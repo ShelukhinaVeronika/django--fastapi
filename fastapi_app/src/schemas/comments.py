@@ -1,6 +1,6 @@
 from pydantic import Field, field_validator
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from src.schemas.base import BaseSchema
 from src.exceptions import ValidationError
 

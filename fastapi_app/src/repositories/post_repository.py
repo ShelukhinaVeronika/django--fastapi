@@ -21,7 +21,6 @@ class PostRepository(BaseRepository[Post]):
             "title",
             "text",
             "pub_date",
-            "image",
             "author_id",
             "location_id",
             "category_id",
@@ -36,12 +35,11 @@ class PostRepository(BaseRepository[Post]):
             title=row[1],
             text=row[2],
             pub_date=row[3],
-            image=row[4],
-            author_id=row[5],
-            location_id=row[6] if row[6] else None,
-            category_id=row[7] if row[7] else None,
-            is_published=bool(row[8]),
-            created_at=row[9],
+            author_id=row[4],
+            location_id=row[5] if row[5] else None,
+            category_id=row[6] if row[6] else None,
+            is_published=bool(row[7]),
+            created_at=row[8],
         )
 
     def get_by_author(self, author_id: int) -> List[Post]:

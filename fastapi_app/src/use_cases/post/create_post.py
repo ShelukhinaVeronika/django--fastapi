@@ -43,9 +43,9 @@ class CreatePostUseCase:
             author_id=post_data.author_id,
             location_id=post_data.location_id,
             category_id=post_data.category_id,
-            image=post_data.image,
             is_published=post_data.is_published,
             created_at=post_data.created_at,
+            images=[]
         )
 
         return self.post_repository.create(new_post)

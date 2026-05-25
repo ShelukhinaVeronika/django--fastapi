@@ -16,6 +16,7 @@ from src.models.user import User
 from src.models.comment import Comment
 from src.models.location import Location
 from src.models.post import Post
+from src.models.image import Image
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

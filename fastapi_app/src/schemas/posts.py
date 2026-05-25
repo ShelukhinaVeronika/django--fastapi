@@ -1,6 +1,6 @@
 from pydantic import Field, field_validator
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from src.schemas.base import BaseSchema
 from src.exceptions import ValidationError
 
@@ -13,7 +13,7 @@ class Post(BaseSchema):
     author_id: int
     location_id: Optional[int] = None
     category_id: Optional[int] = None
-    image: Optional[str] = None
+    images: List[str] = []
     is_published: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
 
@@ -25,7 +25,6 @@ class PostCreate(BaseSchema):
     author_id: int
     location_id: Optional[int] = None
     category_id: Optional[int] = None
-    image: Optional[str] = None
     is_published: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
 

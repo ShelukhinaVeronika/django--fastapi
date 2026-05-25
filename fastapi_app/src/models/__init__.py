@@ -3,6 +3,7 @@ from .location import Location
 from .user import User
 from .post import Post
 from .comment import Comment
+from .image import Image
 
 __all__ = [
     "Category",
@@ -10,4 +11,5 @@ __all__ = [
     "User",
     "Post",
     "Comment",
+    "Image",
 ]

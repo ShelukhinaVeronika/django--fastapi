@@ -6,6 +6,7 @@ from src.repositories.user_repository import UserRepository
 from src.repositories.category_repository import CategoryRepository
 from src.repositories.location_repository import LocationRepository
 from src.repositories.comment_repository import CommentRepository
+from src.repositories.image_repository import ImageRepository 
 from src.use_cases.post import (
     CreatePostUseCase,
     DeletePostUseCase,
@@ -49,6 +50,8 @@ def get_location_repository(db: Session = Depends(get_db)):
 def get_comment_repository(db: Session = Depends(get_db)):
     return CommentRepository(db)
 
+def get_image_repository(db: Session = Depends(get_db)):
+    return ImageRepository(db)
 
 @router.get("/", response_model=List[Post])
 def get_all_posts(
@@ -90,43 +93,52 @@ def create_post(
     location_id: Optional[int] = Form(None),
     category_id: Optional[int] = Form(None),
     is_published: bool = Form(True),
-    image: UploadFile = File(None),
+    images: List[UploadFile] = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Создать новый пост с картинкой"""
-    post_repository = get_post_repository(db)
-    user_repository = get_user_repository(db)
-    category_repository = get_category_repository(db)
-    location_repository = get_location_repository(db)
-
-    image_url = None
-    if image:
-        image_url = save_image(image, current_user.id)
-
-    post_data = PostCreate(
-        title=title,
-        text=text,
-        location_id=location_id,
-        category_id=category_id,
-        is_published=is_published,
-        image=image_url,
-        author_id=current_user.id,
-    )
-
-    use_case = CreatePostUseCase(
-        post_repository, user_repository, category_repository, location_repository
-    )
 
     try:
-        return use_case.execute(post_data)
+        post_repository = get_post_repository(db)
+        user_repository = get_user_repository(db)
+        category_repository = get_category_repository(db)
+        location_repository = get_location_repository(db)
+        image_repository = get_image_repository(db)
+
+        image_urls = []
+        for image in images:
+            url = save_image(image, current_user.id)
+            image_urls.append(url)
+
+        post_data = PostCreate(
+            title=title,
+            text=text,
+            location_id=location_id,
+            category_id=category_id,
+            is_published=is_published,
+            author_id=current_user.id,
+        )
+
+        use_case = CreatePostUseCase(
+            post_repository, user_repository, category_repository, location_repository
+        )
+
+        post = use_case.execute(post_data)
+    
+        for url in image_urls:
+            image_repository.create(url=url, post_id=post.id)
+    
+        post.images = image_urls
+    
+        return post
+
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
     except UniqueConstraintError as e:
         raise ConflictHTTPError(e.entity_name, e.field, e.value)
     except ValidationError as e:
         raise BadRequestHTTPError(e.message, e.field)
-
 
 @router.put("/{post_id}", response_model=Post)
 def update_post(
@@ -136,30 +148,31 @@ def update_post(
     location_id: Optional[int] = Form(None),
     category_id: Optional[int] = Form(None),
     is_published: Optional[bool] = Form(None),
-    image: UploadFile = File(None),
+    images: List[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Обновить пост с возможностью смены картинки"""
+    """Обновить пост с возможностью добавления картинок"""
+    
     post_repository = get_post_repository(db)
     user_repository = get_user_repository(db)
     category_repository = get_category_repository(db)
     location_repository = get_location_repository(db)
+    image_repository = get_image_repository(db)
 
     try:
         existing_post = post_repository.get_by_id(post_id)
-        if existing_post.author_id != current_user.id and not current_user.is_superuser:
-            raise HTTPException(
-                status_code=403, detail="You can only update your own posts"
-            )
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
-
-    image_url = existing_post.image
-    if image:
-        if existing_post.image:
-            delete_image(existing_post.image)
-        image_url = save_image(image, current_user.id)
+    
+    if existing_post.author_id != current_user.id and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=403, detail="You can only update your own posts"
+        )
+    if images:
+        for image in images:
+            url = save_image(image, current_user.id)
+            image_repository.create(url=url, post_id=post_id)
 
     post_data = PostUpdate(
         title=title,
@@ -167,7 +180,6 @@ def update_post(
         location_id=location_id,
         category_id=category_id,
         is_published=is_published,
-        image=image_url,
     )
 
     use_case = UpdatePostUseCase(
@@ -175,12 +187,14 @@ def update_post(
     )
 
     try:
-        return use_case.execute(post_id, post_data)
+        updated_post = use_case.execute(post_id, post_data)
+        images_list = image_repository.get_by_post(post_id)
+        updated_post.images = [img.url for img in images_list]
+        return updated_post
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
     except ValidationError as e:
         raise BadRequestHTTPError(e.message, e.field)
-
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(
@@ -188,19 +202,19 @@ def delete_post(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Удалить пост и его картинку"""
+    """Удалить пост и все его картинки"""
     post_repository = get_post_repository(db)
     comment_repository = get_comment_repository(db)
+    image_repository = get_image_repository(db)
 
     try:
-        existing_post = repository.get_by_id(post_id)
+        existing_post = post_repository.get_by_id(post_id)
         if existing_post.author_id != current_user.id and not current_user.is_superuser:
             raise HTTPException(
                 status_code=403, detail="You can only delete your own posts"
             )
-
-        if existing_post.image:
-            delete_image(existing_post.image)
+        image_repository.delete_by_post(post_id)
+        
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
 

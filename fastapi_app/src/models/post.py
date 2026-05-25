@@ -30,3 +30,4 @@ class Post(Base, PublishedMixin, TimestampMixin):
     location = relationship("Location", back_populates="posts")
     category = relationship("Category", back_populates="posts")
     comments = relationship("Comment", back_populates="post")
+    images = relationship("Image", back_populates="post", cascade="all, delete-orphan")

@@ -76,34 +76,6 @@ def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
         raise BadRequestHTTPError(e.message, e.field)
 
 
-@router.get("/me", response_model=User)
-def get_current_user_info(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
-):
-    """Получить информацию о текущем пользователе"""
-    return current_user
-
-
-@router.put("/me", response_model=User)
-def update_current_user(
-    user_data: UserUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Обновить текущего пользователя"""
-    repository = get_user_repository(db)
-    use_case = UpdateUserUseCase(repository)
-
-    try:
-        return use_case.execute(current_user.id, user_data)
-    except NotFoundError as e:
-        raise NotFoundHTTPError(e.entity_name, e.entity_id)
-    except UniqueConstraintError as e:
-        raise ConflictHTTPError(e.entity_name, e.field, e.value)
-    except ValidationError as e:
-        raise BadRequestHTTPError(e.message, e.field)
-
-
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_current_user(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
