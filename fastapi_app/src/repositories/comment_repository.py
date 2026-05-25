@@ -4,7 +4,7 @@ from sqlalchemy import text
 from src.repositories.base_repository import BaseRepository
 from src.models.comment import Comment
 from src.exceptions import NotFoundError, UniqueConstraintError, ForeignKeyError
-
+from src.repositories.image_repository import ImageRepository
 
 class CommentRepository(BaseRepository[Comment]):
     """Репозиторий для работы с комментариями"""
@@ -16,18 +16,17 @@ class CommentRepository(BaseRepository[Comment]):
         return "blog_comment"
 
     def _get_columns(self) -> list:
-        return ["text", "image", "post_id", "author_id", "is_published", "created_at"]
+        return ["text", "post_id", "author_id", "is_published", "created_at"]
 
     def _row_to_entity(self, row) -> Comment:
         """Преобразуем строку из БД в SQLAlchemy модель Comment"""
         return Comment(
             id=row[0],
             text=row[1],
-            image=row[2] if row[2] else None,
-            post_id=row[3],
-            author_id=row[4],
-            is_published=bool(row[5]),
-            created_at=row[6],
+            post_id=row[2],
+            author_id=row[3],
+            is_published=bool(row[4]),
+            created_at=row[5],
         )
 
     def get_by_post(self, post_id: int) -> List[Comment]:
@@ -41,7 +40,13 @@ class CommentRepository(BaseRepository[Comment]):
         """)
         result = self.db.execute(query, {"post_id": post_id})
         rows = result.fetchall()
-        return [self._row_to_entity(row) for row in rows]
+        comments = [self._row_to_entity(row) for row in rows]
+        image_repo = ImageRepository(self.db)
+        for comment in comments:    
+            images = image_repo.get_by_comment(comment.id)
+            comment.images = [img.url for img in images]
+    
+        return comments
 
     def get_by_author(self, author_id: int) -> List[Comment]:
         """Получить комментарии автора"""
@@ -74,11 +79,17 @@ class CommentRepository(BaseRepository[Comment]):
         return comment
 
     def create(self, entity: Comment) -> Comment:
-        print(f"💾💾💾 REPOSITORY CREATE: entity.image = {entity.image}")
         try:
             return super().create(entity)
         except Exception as e:
-            print(f"💾💾💾 ERROR: {e}")
+            error_msg = str(e)
+        if "UNIQUE constraint" in error_msg or "duplicate key" in error_msg:
+            raise UniqueConstraintError("Comment", "id", str(entity.id))
+        if "FOREIGN KEY constraint" in error_msg or "violates foreign key constraint" in error_msg:
+            if "post_id" in error_msg:
+                raise ForeignKeyError("Post", "post_id", entity.post_id)
+            if "author_id" in error_msg:
+                raise ForeignKeyError("User", "author_id", entity.author_id)
             raise
 
     def update(self, comment_id: int, entity: Comment) -> Comment:

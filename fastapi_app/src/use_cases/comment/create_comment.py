@@ -29,7 +29,6 @@ class CreateCommentUseCase:
 
         new_comment = Comment(
             text=comment_data.text,
-            image=comment_data.image,
             post_id=comment_data.post_id,
             author_id=comment_data.author_id,
             is_published=comment_data.is_published,

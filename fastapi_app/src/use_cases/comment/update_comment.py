@@ -22,19 +22,15 @@ class UpdateCommentUseCase:
                 if comment_data.text is not None
                 else existing_comment.text
             ),
-            image=(
-                comment_data.image
-                if comment_data.image is not None
-                else existing_comment.image
-            ),
             post_id=existing_comment.post_id,
             author_id=existing_comment.author_id,
             is_published=(
                 comment_data.is_published
                 if comment_data.is_published is not None
                 else existing_comment.is_published
-            ),
+            ),  images=[],
             created_at=existing_comment.created_at,
+            
         )
 
         return self.repository.update(comment_id, updated_comment)

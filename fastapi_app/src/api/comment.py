@@ -4,6 +4,7 @@ from src.schemas.comments import Comment, CommentCreate, CommentUpdate
 from src.repositories.comment_repository import CommentRepository
 from src.repositories.post_repository import PostRepository
 from src.repositories.user_repository import UserRepository
+from src.repositories.image_repository import ImageRepository
 from src.use_cases.comment import (
     CreateCommentUseCase,
     DeleteCommentUseCase,
@@ -40,6 +41,10 @@ def get_user_repository(db: Session = Depends(get_db)):
     return UserRepository(db)
 
 
+def get_image_repository(db: Session = Depends(get_db)):
+    return ImageRepository(db)
+
+
 @router.get("/", response_model=List[Comment])
 def get_all_comments(
     skip: int = 0,
@@ -49,16 +54,18 @@ def get_all_comments(
     db: Session = Depends(get_db),
 ):
     """Получить все комментарии (можно фильтровать по post_id)"""
-    repository = get_comment_repository(db)
-    use_case = GetAllCommentsUseCase(repository)
+    comment_repository = get_comment_repository(db)
+    image_repository = get_image_repository(db)
+    use_case = GetAllCommentsUseCase(comment_repository, image_repository)
     return use_case.execute(skip, limit, post_id, only_published)
 
 
 @router.get("/{comment_id}", response_model=Comment)
 def get_comment_by_id(comment_id: int, db: Session = Depends(get_db)):
     """Получить комментарий по ID"""
-    repository = get_comment_repository(db)
-    use_case = GetCommentByIdUseCase(repository)
+    comment_repository = get_comment_repository(db)
+    image_repository = get_image_repository(db)
+    use_case = GetCommentByIdUseCase(comment_repository, image_repository)
     try:
         return use_case.execute(comment_id)
     except NotFoundError as e:
@@ -70,37 +77,44 @@ def create_comment(
     text: str = Form(...),
     post_id: int = Form(...),
     is_published: bool = Form(True),
-    image: UploadFile = File(None),
+    images: List[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Создать новый комментарий с картинкой"""
-    comment_repository = get_comment_repository(db)
-    post_repository = get_post_repository(db)
-    user_repository = get_user_repository(db)
-
-    post = post_repository.get_by_id(post_id)
-    if not post:
-        raise NotFoundHTTPError("Post", post_id)
-
-    image_url = None
-    if image:
-        image_url = save_image(image, current_user.id)
-
-    comment_data = CommentCreate(
-        text=text,
-        post_id=post_id,
-        is_published=is_published,
-        image=image_url,
-        author_id=current_user.id,
-    )
-
-    use_case = CreateCommentUseCase(
-        comment_repository, post_repository, user_repository
-    )
-
     try:
-        return use_case.execute(comment_data)
+        comment_repository = get_comment_repository(db)
+        post_repository = get_post_repository(db)
+        user_repository = get_user_repository(db)
+        image_repository = get_image_repository(db)
+
+        post = post_repository.get_by_id(post_id)
+        if not post:
+            raise NotFoundHTTPError("Post", post_id)
+
+        comment_data = CommentCreate(
+            text=text,
+            post_id=post_id,
+            is_published=is_published,
+            author_id=current_user.id,
+        )
+
+        use_case = CreateCommentUseCase(
+            comment_repository, post_repository, user_repository
+        )
+        comment = use_case.execute(comment_data)
+
+        image_urls = []
+        if images:
+            for image in images:
+                url = save_image(image, current_user.id)
+                image_repository.create(url=url, comment_id=comment.id)
+                image_urls.append(url)
+
+        comment.images = image_urls
+
+        return comment
+
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
     except ValidationError as e:
@@ -112,12 +126,13 @@ def update_comment(
     comment_id: int,
     text: Optional[str] = Form(None),
     is_published: Optional[bool] = Form(None),
-    image: UploadFile = File(None),
+    images: List[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Обновить комментарий с возможностью смены картинки"""
     repository = get_comment_repository(db)
+    image_repository = get_image_repository(db)
 
     try:
         existing_comment = repository.get_by_id(comment_id)
@@ -131,18 +146,23 @@ def update_comment(
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
-    image_url = existing_comment.image
-    if image:
-        if existing_comment.image:
-            delete_image(existing_comment.image)
-        image_url = save_image(image, current_user.id)
+    if images:
+        for image in images:
+            url = save_image(image, current_user.id)
+            image_repository.create(url=url, comment_id=comment_id)
 
-    comment_data = CommentUpdate(text=text, is_published=is_published, image=image_url)
-
-    use_case = UpdateCommentUseCase(repository)
-
+    if text is not None:
+        existing_comment.text = text
+    if is_published is not None:
+        existing_comment.is_published = is_published
     try:
-        return use_case.execute(comment_id, comment_data)
+        repository.db.commit()
+        repository.db.refresh(existing_comment)
+
+        images_list = image_repository.get_by_comment(comment_id)
+        existing_comment.images = [img.url for img in images_list]
+
+        return existing_comment
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
     except ValidationError as e:
@@ -157,6 +177,7 @@ def delete_comment(
 ):
     """Удалить комментарий"""
     repository = get_comment_repository(db)
+    image_repository = get_image_repository(db)
 
     try:
         existing_comment = repository.get_by_id(comment_id)
@@ -167,6 +188,7 @@ def delete_comment(
             raise HTTPException(
                 status_code=403, detail="You can only delete your own comments"
             )
+        image_repository.delete_by_comment(comment_id)
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
 
