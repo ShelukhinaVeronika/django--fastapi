@@ -28,9 +28,9 @@ class UpdateCommentUseCase:
                 comment_data.is_published
                 if comment_data.is_published is not None
                 else existing_comment.is_published
-            ),  images=[],
+            ),  
             created_at=existing_comment.created_at,
-            
+            images=[],
         )
 
         return self.repository.update(comment_id, updated_comment)

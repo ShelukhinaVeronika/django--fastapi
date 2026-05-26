@@ -63,22 +63,19 @@ def get_all_posts(
     only_published: bool = False,
     db: Session = Depends(get_db),
 ):
-    """Получить все посты с фильтрацией"""
-    repository = get_post_repository(db)
-    use_case = GetAllPostsUseCase(repository)
-    return use_case.execute(
-        skip, limit, author_id, category_id, location_id, only_published
-    )
-
+    post_repository = get_post_repository(db)
+    image_repository = get_image_repository(db)
+    use_case = GetAllPostsUseCase(post_repository, image_repository)
+    return use_case.execute(skip, limit, author_id, category_id, location_id, only_published)
 
 @router.get("/{post_id}")
 def get_post_by_id(
     post_id: int, include_comments: bool = True, db: Session = Depends(get_db)
 ):
-    """Получить пост по ID с комментариями"""
     post_repository = get_post_repository(db)
     comment_repository = get_comment_repository(db)
-    use_case = GetPostByIdUseCase(post_repository, comment_repository)
+    image_repository = get_image_repository(db) 
+    use_case = GetPostByIdUseCase(post_repository, comment_repository, image_repository)  
 
     try:
         return use_case.execute(post_id, include_comments)
@@ -149,16 +146,17 @@ def update_post(
     category_id: Optional[int] = Form(None),
     is_published: Optional[bool] = Form(None),
     images: List[UploadFile] = File(None),
+    delete_images: bool = Form(False),  # ← добавить
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Обновить пост с возможностью добавления картинок"""
+    """Обновить пост с возможностью добавления и удаления картинок"""
+    from sqlalchemy import text as sql_text
     
     post_repository = get_post_repository(db)
     user_repository = get_user_repository(db)
     category_repository = get_category_repository(db)
     location_repository = get_location_repository(db)
-    image_repository = get_image_repository(db)
 
     try:
         existing_post = post_repository.get_by_id(post_id)
@@ -169,11 +167,16 @@ def update_post(
         raise HTTPException(
             status_code=403, detail="You can only update your own posts"
         )
+    
+    if delete_images:
+        db.execute(sql_text("DELETE FROM images WHERE post_id = :post_id"), {"post_id": post_id})
+    
     if images:
         for image in images:
             url = save_image(image, current_user.id)
-            image_repository.create(url=url, post_id=post_id)
-
+            db.execute(sql_text("INSERT INTO images (url, post_id) VALUES (:url, :post_id)"), 
+                      {"url": url, "post_id": post_id})
+    
     post_data = PostUpdate(
         title=title,
         text=text,
@@ -188,8 +191,11 @@ def update_post(
 
     try:
         updated_post = use_case.execute(post_id, post_data)
-        images_list = image_repository.get_by_post(post_id)
-        updated_post.images = [img.url for img in images_list]
+        
+        result = db.execute(sql_text("SELECT url FROM images WHERE post_id = :post_id"), {"post_id": post_id})
+        images_list = [row[0] for row in result.fetchall()]
+        updated_post.images = images_list
+        
         return updated_post
     except NotFoundError as e:
         raise NotFoundHTTPError(e.entity_name, e.entity_id)
